@@ -105,6 +105,7 @@ func (m *MinidiceRound) maybeRecover() error {
 	if len(m.activeGames) > 0 {
 		m.logger.Info("run recover")
 		for _, ag := range m.activeGames {
+			m.logger.Info("maybeRecover", "active game", ag.String())
 			switch ag.State {
 			case minidicetypes.RoundState_ROUND_STATE_NOT_STARTED:
 				eventData := MinidiceStartRoundData{
@@ -217,6 +218,7 @@ func (m *MinidiceRound) run(ctx context.Context) {
 func (m *MinidiceRound) initGameCallback(event pubsub.Message) {
 	eventData := event.Data().(MinidiceInitGameData)
 	m.logger.Info("Received minidice init game event", "eventData", eventData)
+
 	err := m.startRound(eventData.Denom)
 	if err != nil {
 		m.logger.Info("initGameCallback", "err", err)
@@ -234,10 +236,19 @@ func (m *MinidiceRound) startRoundCallback(event pubsub.Message) {
 	eventData := event.Data().(MinidiceStartRoundData)
 	m.logger.Info("Received start round event", "eventData", eventData)
 
+	info, err := m.tplusClient.GetActiveGame(eventData.Denom)
+	if err != nil {
+		m.logger.Info("startRoundCallback GetActiveGame failed", "err", err)
+		panic(err)
+	}
+
+	m.logger.Info("startRoundCallback", "active game", info.String())
+	m.logger.Info("startRoundCallback", "time now", time.Now().Unix())
+
 	t := time.NewTicker(time.Duration(m.options.StartRoundInterval) * time.Second)
 	defer t.Stop()
 	<-t.C
-	err := m.endRound(eventData.Denom)
+	err = m.endRound(eventData.Denom)
 	if err != nil {
 		m.logger.Error("startRoundCallback endRound err", "error", err)
 	}
@@ -324,7 +335,7 @@ func (m *MinidiceRound) finalizeRound(denom string) error {
 		Denom:   denom,
 	}
 	txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
-	if err != nil && txResp.Code != 0 {
+	if err != nil || txResp.Code != 0 {
 		m.logger.Error("finalizeRound", "err", err)
 		return err
 	}
