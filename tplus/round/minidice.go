@@ -243,14 +243,14 @@ func (m *MinidiceRound) startRoundCallback(event pubsub.Message) {
 	}
 
 	m.logger.Info("startRoundCallback", "active game", info.String())
-	m.logger.Info("startRoundCallback", "time now", time.Now().Unix())
-
 	t := time.NewTicker(time.Duration(m.options.StartRoundInterval) * time.Second)
 	defer t.Stop()
 	<-t.C
+	m.logger.Info("startRoundCallback", "time now", time.Now().Unix())
 	err = m.endRound(eventData.Denom)
 	if err != nil {
 		m.logger.Error("startRoundCallback endRound err", "error", err)
+		panic(err)
 	}
 
 	endRoundEvent := MinidiceEndRoundData(eventData)
