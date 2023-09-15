@@ -33,7 +33,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		KeyringBackend:   "test",
 		NodeAddress:      "http://127.0.0.1:26657",
-		KeyringHomeDir:   "~/.2plus/keyring-test",
+		KeyringHomeDir:   "~/.2plus",
 		TplusAccountName: "rol-user",
 		GasLimit:         DefaultGasLimit,
 		GasPrices:        "0.025uplus",

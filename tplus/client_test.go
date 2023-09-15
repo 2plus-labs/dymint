@@ -11,7 +11,7 @@ func testConfig() Config {
 	return Config{
 		KeyringBackend:   "test",
 		NodeAddress:      "http://127.0.0.1:26657",
-		KeyringHomeDir:   "~/.2plus/keyring-test",
+		KeyringHomeDir:   "~/.2plus",
 		TplusAccountName: "tpluser",
 		GasLimit:         DefaultGasLimit,
 		GasPrices:        "0.025uplus",
@@ -37,4 +37,18 @@ func TestClientQuery(t *testing.T) {
 	}
 
 	t.Logf("active games: %s", activeGamesResponse.String())
+}
+
+func TestGetAccount(t *testing.T) {
+	config := testConfig()
+	client, err := NewTplusClient(&config)
+	if err != nil {
+		t.Fatalf("error: %s", err.Error())
+	}
+	accountAddr, err := client.GetAccountAddress("rol-user")
+	if err != nil {
+		t.Fatalf("error: %s", err.Error())
+	}
+
+	t.Logf("account address: %s", accountAddr)
 }

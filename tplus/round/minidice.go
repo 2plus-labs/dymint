@@ -6,6 +6,7 @@ import (
 	"time"
 
 	minidicetypes "github.com/2plus-labs/2plus-core/x/minidice/types"
+	"github.com/avast/retry-go"
 	"github.com/dymensionxyz/dymint/log"
 	"github.com/dymensionxyz/dymint/tplus"
 	"github.com/dymensionxyz/dymint/utils"
@@ -48,14 +49,19 @@ func NewMinidiceRound(
 	pubsub *pubsub.Server,
 	creator string,
 ) (*MinidiceRound, error) {
-	tplusClient, err := tplus.NewTplusClient(tplusConfig)
+	var tplusClient *tplus.TplusClient
+	var err error
+	retry.Do(func() error {
+		tplusClient, err = tplus.NewTplusClient(tplusConfig)
+		return err
+	})
+
 	if err != nil {
 		logger.Error("init tplus client failed: %s", err)
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-
 	m := &MinidiceRound{
 		ctx:         ctx,
 		cancelFunc:  cancel,
@@ -68,6 +74,7 @@ func NewMinidiceRound(
 
 	creatorAddr, err := m.tplusClient.GetAccountAddress(m.creator)
 	if err != nil {
+		m.logger.Error("NewMinidiceRound", "creator", creator)
 		return nil, err
 	}
 	logger.Info("minidice round", "creator", creator, "creator addr", creatorAddr)
@@ -84,7 +91,7 @@ func (m *MinidiceRound) Start() error {
 	}
 	// m.activeGames = m.getActiveGames()
 	go m.run(m.ctx)
-	m.filterEventInitGame()
+	go m.filterEventInitGame()
 	return nil
 }
 
@@ -99,20 +106,23 @@ func (m *MinidiceRound) Stop() error {
 }
 
 func (m *MinidiceRound) filterEventInitGame() {
+	m.logger.Info("minidice round filterEventInitGame")
 	eventsChannel, err := m.tplusClient.SubscribeToEvents(m.ctx, "minidice-round", minidicetypes.EventTypeInitGame)
 	if err != nil {
 		panic("Error subscribing to events")
 	}
+	m.logger.Info("subcribed to tplus EventTypeInitGame")
 	for {
 		select {
 		case <-m.ctx.Done():
+			m.logger.Info("filterEventInitGame context done")
 			return
 		case <-m.tplusClient.EventListenerQuit():
 			panic("ws minidice round disconnected")
 		case event := <-eventsChannel:
-			m.logger.Debug("Received event from tplus")
+			m.logger.Info("Received event from tplus")
 			if event.Query != minidicetypes.EventTypeInitGame {
-				m.logger.Debug("Ignoring event. Type not supported", "event", event)
+				m.logger.Info("Ignoring event. Type not supported", "event", event)
 				continue
 			}
 
