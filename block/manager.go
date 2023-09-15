@@ -15,6 +15,8 @@ import (
 	abciconv "github.com/dymensionxyz/dymint/conv/abci"
 	"github.com/dymensionxyz/dymint/node/events"
 	"github.com/dymensionxyz/dymint/p2p"
+	"github.com/dymensionxyz/dymint/tplus"
+	"github.com/dymensionxyz/dymint/tplus/round"
 	"github.com/dymensionxyz/dymint/utils"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	abci "github.com/tendermint/tendermint/abci/types"
@@ -78,6 +80,8 @@ type Manager struct {
 	isSyncedCond       sync.Cond
 
 	syncCache map[uint64]*types.Block
+
+	minidiceRound *round.MinidiceRound
 
 	logger log.Logger
 }
@@ -185,7 +189,26 @@ func (m *Manager) Start(ctx context.Context, isAggregator bool) error {
 	go m.RetriveLoop(ctx)
 	go m.SyncTargetLoop(ctx)
 	m.EventListener(ctx)
+	go m.StartMinidiceRound()
 
+	return nil
+}
+
+func (m *Manager) StartMinidiceRound() error {
+	m.logger.Info("Started minidice round")
+	// Hardcode
+	tplusConfig := tplus.DefaultConfig()
+	minidiceRound, err := round.NewMinidiceRound(tplusConfig, round.DefaultOptions(),
+		m.logger, m.pubsub,
+		tplusConfig.TplusAccountName)
+	if err != nil {
+		return fmt.Errorf("minidice round init failed error: %w", err)
+	}
+	m.minidiceRound = minidiceRound
+	err = minidiceRound.Start()
+	if err != nil {
+		return fmt.Errorf("error while starting minidice round: %w", err)
+	}
 	return nil
 }
 
