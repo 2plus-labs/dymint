@@ -81,7 +81,7 @@ type Manager struct {
 
 	syncCache map[uint64]*types.Block
 
-	minidiceRound *round.MinidiceRound
+	//minidiceRound *round.MinidiceRound
 
 	logger log.Logger
 }
@@ -189,7 +189,12 @@ func (m *Manager) Start(ctx context.Context, isAggregator bool) error {
 	go m.RetriveLoop(ctx)
 	go m.SyncTargetLoop(ctx)
 	m.EventListener(ctx)
-	go m.StartMinidiceRound()
+
+	m.logger.Info("Starting the minidice round")
+	if err := m.StartMinidiceRound(); err != nil {
+		m.logger.Error("Failed to start minidice round", "err", err)
+		return err
+	}
 
 	return nil
 }
@@ -205,7 +210,7 @@ func (m *Manager) StartMinidiceRound() error {
 		m.logger.Error("minidice round init failed", "err", err)
 		return fmt.Errorf("minidice round init failed error: %w", err)
 	}
-	m.minidiceRound = minidiceRound
+	//m.minidiceRound = minidiceRound
 	err = minidiceRound.Start()
 	if err != nil {
 		m.logger.Error("minidice round start failed", "err", err)

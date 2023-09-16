@@ -23,7 +23,7 @@ type MinidiceOptions struct {
 
 func DefaultOptions() *MinidiceOptions {
 	return &MinidiceOptions{
-		StartRoundInterval:    62,
+		StartRoundInterval:    45,
 		EndRoundInterval:      12,
 		FinalizeRoundInterval: 3,
 	}
@@ -94,8 +94,8 @@ func (m *MinidiceRound) Start() error {
 		m.logger.Error("minidice round start", "err", err)
 		return err
 	}
-	go m.run(m.ctx)
 	go m.filterEventInitGame()
+	m.run(m.ctx)
 	return nil
 }
 
@@ -246,7 +246,7 @@ func (m *MinidiceRound) startRoundCallback(event pubsub.Message) {
 	t := time.NewTicker(time.Duration(m.options.StartRoundInterval) * time.Second)
 	defer t.Stop()
 	<-t.C
-	m.logger.Info("startRoundCallback", "time now", time.Now().Unix())
+	m.logger.Info("startRoundCallback", "time now", time.Now().UTC().Unix())
 	err = m.endRound(eventData.Denom)
 	if err != nil {
 		m.logger.Error("startRoundCallback endRound err", "error", err)
