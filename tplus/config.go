@@ -6,7 +6,7 @@ import (
 
 const (
 	AddressPrefix   = "tplus"
-	DefaultGasLimit = 300000
+	DefaultGasLimit = 3000000
 )
 
 type Config struct {
