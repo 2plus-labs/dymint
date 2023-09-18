@@ -91,11 +91,19 @@ func (m *MinidiceRound) Start() error {
 	m.subscribeAndHandleEvents(m.ctx)
 	go m.filterEventInitGame()
 
-	err = m.maybeRecover()
-	if err != nil {
-		m.logger.Error("minidice round maybeRecover", "err", err)
-		return err
-	}
+	go func() {
+		time.Sleep(1 * time.Second)
+		err = m.maybeRecover()
+		if err != nil {
+			m.logger.Error("minidice round maybeRecover", "err", err)
+			panic(err)
+		}
+	}()
+	//err = m.maybeRecover()
+	//if err != nil {
+	//	m.logger.Error("minidice round maybeRecover", "err", err)
+	//	return err
+	//}
 	return nil
 }
 
@@ -340,7 +348,8 @@ func (m *MinidiceRound) endRound(denom string) error {
 		Creator: m.creatorAddr,
 		Denom:   denom,
 	}
-	m.logger.Info("MinidiceRound", "broadcast endRound", msg.Denom)
+	m.logger.Info("MinidiceRound", "broadcast endRound", msg.String())
+	//spew.Dump(m.tplusClient.Client)
 	txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
 	if err != nil || txResp.Code != 0 {
 		m.logger.Error("broadcast endRound error", "err", err)
