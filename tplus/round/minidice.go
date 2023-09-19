@@ -24,8 +24,8 @@ type MinidiceOptions struct {
 func DefaultOptions() *MinidiceOptions {
 	return &MinidiceOptions{
 		StartRoundInterval:    45,
-		EndRoundInterval:      12,
-		FinalizeRoundInterval: 3,
+		EndRoundInterval:      3,
+		FinalizeRoundInterval: 12,
 	}
 }
 
@@ -174,6 +174,7 @@ func (m *MinidiceRound) maybeRecover() error {
 					panic(err)
 				}
 			}
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 	return nil
