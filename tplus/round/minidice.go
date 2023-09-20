@@ -99,11 +99,6 @@ func (m *MinidiceRound) Start() error {
 			panic(err)
 		}
 	}()
-	//err = m.maybeRecover()
-	//if err != nil {
-	//	m.logger.Error("minidice round maybeRecover", "err", err)
-	//	return err
-	//}
 	return nil
 }
 
@@ -231,14 +226,15 @@ func (m *MinidiceRound) getEventData(raw ctypes.ResultEvent) (MinidiceInitGameDa
 func (m *MinidiceRound) subscribeAndHandleEvents(ctx context.Context) {
 	m.logger.Info("minidice round handle events internal")
 	clientID := "MinidiceRound"
+	outCapacity := 100
 
-	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceInitGameQuery, m.initGameCallback, m.logger)
+	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceInitGameQuery, m.initGameCallback, m.logger, outCapacity)
 
-	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceStartRoundQuery, m.startRoundCallback, m.logger)
+	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceStartRoundQuery, m.startRoundCallback, m.logger, outCapacity)
 
-	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceEndRoundQuery, m.endRoundCallback, m.logger)
+	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceEndRoundQuery, m.endRoundCallback, m.logger, outCapacity)
 
-	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceFinalizeRoundQuery, m.finalizeRoundCallback, m.logger)
+	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceFinalizeRoundQuery, m.finalizeRoundCallback, m.logger, outCapacity)
 
 }
 
