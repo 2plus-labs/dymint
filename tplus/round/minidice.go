@@ -187,7 +187,8 @@ func (m *MinidiceRound) Stop() error {
 
 func (m *MinidiceRound) filterEventInitGame() {
 	m.logger.Info("minidice round filterEventInitGame")
-	query := fmt.Sprintf("InitGame.creator='%s'", m.creatorAddr)
+	// Hardcode query for now maybe change later
+	query := fmt.Sprintf("InitGame.init_game='init_game'")
 	eventsChannel, err := m.tplusClient.SubscribeToEvents(m.ctx, "minidice-round", query)
 	if err != nil {
 		panic("Error subscribing to events")
