@@ -737,7 +737,8 @@ func (m *Manager) produceBlock(ctx context.Context, allowEmpty bool) error {
 		return err
 	}
 
-	m.logger.Info("block created", "height", newHeight, "num_tx", len(block.Data.Txs))
+	timeEx := uint64(time.Now().UTC().UnixNano()) - block.Header.Time
+	m.logger.Info("block created", "height", newHeight, "num_tx", len(block.Data.Txs), "time-ex", timeEx)
 	rollappHeightGauge.Set(float64(newHeight))
 
 	//TODO: move to separate function
