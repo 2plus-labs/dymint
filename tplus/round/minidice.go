@@ -39,6 +39,14 @@ type MinidiceRound struct {
 	tplusClient *tplus.TplusClient
 	creator     string
 	creatorAddr string
+
+	// use to retry call startRound, endRound, finalizeRound
+	ctlRoundRetryAttempts uint
+	ctlRoundRetryDelay    time.Duration
+	ctlRoundRetryMaxDelay time.Duration
+
+	// temp cache round_id will remove later
+	currentRound uint32
 }
 
 func NewMinidiceRound(
@@ -62,13 +70,17 @@ func NewMinidiceRound(
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &MinidiceRound{
-		ctx:         ctx,
-		cancelFunc:  cancel,
-		options:     options,
-		pubsub:      pubsub,
-		logger:      logger,
-		tplusClient: tplusClient,
-		creator:     creator,
+		ctx:                   ctx,
+		cancelFunc:            cancel,
+		options:               options,
+		pubsub:                pubsub,
+		logger:                logger,
+		tplusClient:           tplusClient,
+		creator:               creator,
+		currentRound:          0,
+		ctlRoundRetryAttempts: 5,
+		ctlRoundRetryDelay:    300 * time.Millisecond,
+		ctlRoundRetryMaxDelay: 5 * time.Second,
 	}
 
 	creatorAddr, err := m.tplusClient.GetAccountAddress(m.creator)
@@ -333,12 +345,19 @@ func (m *MinidiceRound) startRound(denom string) error {
 		Denom:   denom,
 	}
 	m.logger.Info("MinidiceRound", "broadcast startRound")
-	txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
-	if err != nil || txResp.Code != 0 {
-		m.logger.Error("broadcast startRound error", "err", err)
-		return err
-	}
-	return nil
+	err := retry.Do(func() error {
+		txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
+		if err != nil || txResp.Code != 0 {
+			m.logger.Error("broadcast startRound error", "err", err)
+			return err
+		}
+		return nil
+	}, retry.Context(m.ctx), retry.LastErrorOnly(true), retry.Delay(m.ctlRoundRetryDelay),
+		retry.MaxDelay(m.ctlRoundRetryMaxDelay), retry.Attempts(m.ctlRoundRetryAttempts))
+	m.currentRound++
+	m.logger.Info("initGameCallback", "current round", m.currentRound)
+
+	return err
 }
 
 func (m *MinidiceRound) endRound(denom string) error {
@@ -347,13 +366,19 @@ func (m *MinidiceRound) endRound(denom string) error {
 		Denom:   denom,
 	}
 	m.logger.Info("MinidiceRound", "broadcast endRound", msg.String())
-	//spew.Dump(m.tplusClient.Client)
-	txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
-	if err != nil || txResp.Code != 0 {
-		m.logger.Error("broadcast endRound error", "err", err)
-		return err
-	}
-	return nil
+	err := retry.Do(func() error {
+		txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
+		if err != nil || txResp.Code != 0 {
+			m.logger.Error("broadcast endRound error", "err", err)
+			return err
+		}
+		return nil
+	}, retry.Context(m.ctx), retry.LastErrorOnly(true), retry.Delay(m.ctlRoundRetryDelay),
+		retry.MaxDelay(m.ctlRoundRetryMaxDelay), retry.Attempts(m.ctlRoundRetryAttempts))
+
+	m.logger.Info("endRoundCallback", "current round", m.currentRound)
+
+	return err
 }
 
 func (m *MinidiceRound) finalizeRound(denom string) error {
@@ -362,10 +387,17 @@ func (m *MinidiceRound) finalizeRound(denom string) error {
 		Denom:   denom,
 	}
 	m.logger.Info("MinidiceRound", "broadcast finalizeRound")
-	txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
-	if err != nil || txResp.Code != 0 {
-		m.logger.Error("broadcast finalizeRound error", "err", err)
-		return err
-	}
-	return nil
+	err := retry.Do(func() error {
+		txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
+		if err != nil || txResp.Code != 0 {
+			m.logger.Error("broadcast finalizeRound error", "err", err)
+			return err
+		}
+		return nil
+	}, retry.Context(m.ctx), retry.LastErrorOnly(true), retry.Delay(m.ctlRoundRetryDelay),
+		retry.MaxDelay(m.ctlRoundRetryMaxDelay), retry.Attempts(m.ctlRoundRetryAttempts))
+
+	m.logger.Info("finalizeRoundCallback", "current round", m.currentRound)
+
+	return err
 }
