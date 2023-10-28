@@ -173,15 +173,6 @@ func (m *MinidiceRound) maybeRecover() error {
 					m.logger.Error("recover call startRound err", "error", err)
 					panic(err)
 				}
-				data := MinidiceStartRoundData{
-					Denom: ag.Denom,
-				}
-				err = m.pubsub.PublishWithEvents(m.ctx, data,
-					map[string][]string{EventMinidiceTypekey: {EventMinidiceStartRound}})
-				if err != nil {
-					m.logger.Error("pubsub failed", "error", err)
-					panic(err)
-				}
 			case minidicetypes.RoundState_ROUND_STATE_STARTED:
 				timeNow := time.Now().UTC().Unix()
 				timeEndRound := ag.EndRound
@@ -201,28 +192,10 @@ func (m *MinidiceRound) maybeRecover() error {
 					m.logger.Error("recover call endRound err", "error", err)
 					panic(err)
 				}
-				data := MinidiceEndRoundData{
-					Denom: ag.Denom,
-				}
-				err = m.pubsub.PublishWithEvents(m.ctx, data,
-					map[string][]string{EventMinidiceTypekey: {EventMinidiceEndRound}})
-				if err != nil {
-					m.logger.Error("pubsub failed", "error", err)
-					panic(err)
-				}
 			case minidicetypes.RoundState_ROUND_STATE_ENDED:
 				err := m.finalizeRound(ag.Denom)
 				if err != nil {
 					m.logger.Error("recover call startRound err", "error", err)
-					panic(err)
-				}
-				data := MinidiceFinalizeRoundData{
-					Denom: ag.Denom,
-				}
-				err = m.pubsub.PublishWithEvents(m.ctx, data,
-					map[string][]string{EventMinidiceTypekey: {EventMinidiceFinalizeRound}})
-				if err != nil {
-					m.logger.Error("pubsub failed", "error", err)
 					panic(err)
 				}
 			}
