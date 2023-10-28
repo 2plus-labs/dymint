@@ -2,7 +2,8 @@ package round
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"sync/atomic"
 	"time"
 
 	minidicetypes "github.com/2plus-labs/2plus-core/x/minidice/types"
@@ -15,17 +16,15 @@ import (
 )
 
 type MinidiceOptions struct {
-	// All interval is by sec
-	StartRoundInterval    int
-	EndRoundInterval      int
-	FinalizeRoundInterval int
+	// All interval is by seconds
+	StartRoundInterval int
+	RoundInterval      int
 }
 
 func DefaultOptions() *MinidiceOptions {
 	return &MinidiceOptions{
-		StartRoundInterval:    45,
-		EndRoundInterval:      3,
-		FinalizeRoundInterval: 12,
+		StartRoundInterval: 45,
+		RoundInterval:      60,
 	}
 }
 
@@ -47,6 +46,9 @@ type MinidiceRound struct {
 
 	// temp cache round_id will remove later
 	currentRound uint32
+
+	// Time diff from started round in seconds
+	diffSinceStarted atomic.Int64
 }
 
 func NewMinidiceRound(
@@ -101,7 +103,50 @@ func (m *MinidiceRound) Start() error {
 		return err
 	}
 	m.subscribeAndHandleEvents(m.ctx)
-	go m.filterEventInitGame()
+
+	go m.filterEventGame(EventMinidiceInitGame, QueryMinidiceInitGame, func(raw ctypes.ResultEvent) (any, error) {
+		denomVals, ok := raw.Events["InitGame.game_denom"]
+		if !ok {
+			return MinidiceInitGameData{}, errors.New("failed get denom from events")
+		}
+		if len(denomVals) == 0 {
+			return MinidiceInitGameData{}, errors.New("list game denom is empty")
+		}
+		return MinidiceInitGameData{Denom: denomVals[0]}, nil
+	})
+
+	go m.filterEventGame(EventMinidiceStartRound, QueryMinidiceStartRound, func(raw ctypes.ResultEvent) (any, error) {
+		denomVals, ok := raw.Events["StartRound.game_denom"]
+		if !ok {
+			return MinidiceStartRoundData{}, errors.New("failed get denom from events")
+		}
+		if len(denomVals) == 0 {
+			return MinidiceStartRoundData{}, errors.New("list game denom is empty")
+		}
+		return MinidiceStartRoundData{Denom: denomVals[0]}, nil
+	})
+
+	go m.filterEventGame(EventMinidiceFinalizeRound, QueryMinidiceFinalizeRound, func(raw ctypes.ResultEvent) (any, error) {
+		denomVals, ok := raw.Events["FinalizeRound.game_denom"]
+		if !ok {
+			return MinidiceFinalizeRoundData{}, errors.New("failed get denom from events")
+		}
+		if len(denomVals) == 0 {
+			return MinidiceFinalizeRoundData{}, errors.New("list game denom is empty")
+		}
+		return MinidiceFinalizeRoundData{Denom: denomVals[0]}, nil
+	})
+
+	go m.filterEventGame(EventMinidiceEndRound, QueryMinidiceEndRound, func(raw ctypes.ResultEvent) (any, error) {
+		denomVals, ok := raw.Events["EndRound.game_denom"]
+		if !ok {
+			return MinidiceEndRoundData{}, errors.New("failed get denom from events")
+		}
+		if len(denomVals) == 0 {
+			return MinidiceEndRoundData{}, errors.New("list game denom is empty")
+		}
+		return MinidiceEndRoundData{Denom: denomVals[0]}, nil
+	})
 
 	go func() {
 		time.Sleep(1 * time.Second)
@@ -197,43 +242,31 @@ func (m *MinidiceRound) Stop() error {
 	return nil
 }
 
-func (m *MinidiceRound) filterEventInitGame() {
-	m.logger.Info("minidice round filterEventInitGame")
-	// Hardcode query for now maybe change later
-	query := fmt.Sprintf("InitGame.init_game='init_game'")
+func (m *MinidiceRound) filterEventGame(eventKey string, query string, parseEventFn func(raw ctypes.ResultEvent) (any, error)) {
 	eventsChannel, err := m.tplusClient.SubscribeToEvents(m.ctx, "minidice-round", query)
 	if err != nil {
 		panic("Error subscribing to events")
 	}
-	m.logger.Info("subcribed to tplus EventTypeInitGame")
+	m.logger.Info("subcribed to tplus events", "query", query)
 	for {
 		select {
 		case <-m.ctx.Done():
-			m.logger.Info("filterEventInitGame context done")
+			m.logger.Info("context done")
 			return
 		case <-m.tplusClient.EventListenerQuit():
 			panic("ws minidice round disconnected")
 		case event := <-eventsChannel:
 			m.logger.Info("Received event from tplus", event)
-			eventData, err := m.getEventData(event)
+			eventData, err := parseEventFn(event)
 			if err != nil {
 				panic(err)
 			}
-			// m.logger.Info("filterEventInitGame", "publish event", eventData)
-			err = m.pubsub.PublishWithEvents(m.ctx, eventData, map[string][]string{EventMinidiceTypekey: {EventMinidiceInitGame}})
+			err = m.pubsub.PublishWithEvents(m.ctx, eventData, map[string][]string{EventMinidiceTypekey: {eventKey}})
 			if err != nil {
 				panic(err)
 			}
 		}
 	}
-}
-
-func (m *MinidiceRound) getEventData(raw ctypes.ResultEvent) (MinidiceInitGameData, error) {
-	denomVals, ok := raw.Events["InitGame.game_denom"]
-	if !ok {
-		return MinidiceInitGameData{}, fmt.Errorf("failed get InitGame.game_denom from events")
-	}
-	return MinidiceInitGameData{Denom: denomVals[0]}, nil
 }
 
 func (m *MinidiceRound) subscribeAndHandleEvents(ctx context.Context) {
@@ -248,7 +281,6 @@ func (m *MinidiceRound) subscribeAndHandleEvents(ctx context.Context) {
 	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceEndRoundQuery, m.endRoundCallback, m.logger, outCapacity)
 
 	go utils.SubscribeAndHandleEvents(ctx, m.pubsub, clientID, EventMinidiceFinalizeRoundQuery, m.finalizeRoundCallback, m.logger, outCapacity)
-
 }
 
 func (m *MinidiceRound) initGameCallback(event pubsub.Message) {
@@ -259,16 +291,10 @@ func (m *MinidiceRound) initGameCallback(event pubsub.Message) {
 	if err != nil {
 		m.logger.Info("call startRound error", "err", err)
 	}
-
-	startRoundEvent := MinidiceStartRoundData(eventData)
-	err = m.pubsub.PublishWithEvents(m.ctx, startRoundEvent, map[string][]string{EventMinidiceTypekey: {EventMinidiceStartRound}})
-	if err != nil {
-		m.logger.Error("initGameCallback pubsub failed", "error", err)
-		panic(err)
-	}
 }
 
 func (m *MinidiceRound) startRoundCallback(event pubsub.Message) {
+	m.diffSinceStarted.Store(time.Now().Unix())
 	eventData := event.Data().(MinidiceStartRoundData)
 	m.logger.Info("Received internal start round event", "denom", eventData.Denom)
 
@@ -288,32 +314,14 @@ func (m *MinidiceRound) startRoundCallback(event pubsub.Message) {
 		m.logger.Error("call endRound err", "error", err)
 		panic(err)
 	}
-
-	endRoundEvent := MinidiceEndRoundData(eventData)
-	err = m.pubsub.PublishWithEvents(m.ctx, endRoundEvent, map[string][]string{EventMinidiceTypekey: {EventMinidiceEndRound}})
-	if err != nil {
-		m.logger.Error("startRoundCallback pubsub failed", "error", err)
-		panic(err)
-	}
 }
 
 func (m *MinidiceRound) endRoundCallback(event pubsub.Message) {
 	eventData := event.Data().(MinidiceEndRoundData)
 	m.logger.Info("Received internal end round event", "denom", eventData.Denom)
-
-	t := time.NewTicker(time.Duration(m.options.EndRoundInterval) * time.Second)
-	defer t.Stop()
-	<-t.C
 	err := m.finalizeRound(eventData.Denom)
 	if err != nil {
 		m.logger.Error("call finalizeRound err", "error", err)
-	}
-
-	finalizeRoundEvent := MinidiceFinalizeRoundData(eventData)
-	err = m.pubsub.PublishWithEvents(m.ctx, finalizeRoundEvent, map[string][]string{EventMinidiceTypekey: {EventMinidiceFinalizeRound}})
-	if err != nil {
-		m.logger.Error("endRoundCallback pubsub failed", "err", err)
-		panic(err)
 	}
 }
 
@@ -321,17 +329,16 @@ func (m *MinidiceRound) finalizeRoundCallback(event pubsub.Message) {
 	eventData := event.Data().(MinidiceFinalizeRoundData)
 	m.logger.Info("received internal finalize round event", "denom", eventData.Denom)
 
-	t := time.NewTicker(time.Duration(m.options.FinalizeRoundInterval) * time.Second)
-	defer t.Stop()
-	<-t.C
+	t := m.diffSinceStarted.Load()
+	startedIn := time.Now().Unix() - t
+	diff := m.options.RoundInterval - int(startedIn)
+	if diff > 0 {
+		time.Sleep(time.Duration(diff) * time.Second)
+	}
+
 	err := m.startRound(eventData.Denom)
 	if err != nil {
 		m.logger.Error("call startRound err", "error", err)
-	}
-	startRoundEvent := MinidiceStartRoundData(eventData)
-	err = m.pubsub.PublishWithEvents(m.ctx, startRoundEvent, map[string][]string{EventMinidiceTypekey: {EventMinidiceStartRound}})
-	if err != nil {
-		m.logger.Error("finalizeRoundCallback pubsub failed", "err", err)
 	}
 }
 

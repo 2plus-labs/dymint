@@ -16,6 +16,13 @@ const (
 	EventMinidiceFinalizeRound = "MinidiceFinalizeRound"
 )
 
+const (
+	QueryMinidiceInitGame      = "InitGame.init_game='init_game'"
+	QueryMinidiceStartRound    = "StartRound.start_round='start_round'"
+	QueryMinidiceFinalizeRound = "FinalizeRound.finalize_round='finalize_round'"
+	QueryMinidiceEndRound      = "EndRound.end_round='end_round'"
+)
+
 type MinidiceInitGameData struct {
 	Denom string
 }
