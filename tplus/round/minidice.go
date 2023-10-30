@@ -3,7 +3,7 @@ package round
 import (
 	"context"
 	"errors"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	minidicetypes "github.com/2plus-labs/2plus-core/x/minidice/types"
@@ -47,8 +47,9 @@ type MinidiceRound struct {
 	// temp cache round_id will remove later
 	currentRound uint32
 
-	// Time diff from started round in seconds
-	diffSinceStarted atomic.Int64
+	// Time diff from started round in seconds by denom
+	sinceStartsMu sync.Mutex
+	sinceStarts   map[string]int64
 }
 
 func NewMinidiceRound(
@@ -267,9 +268,12 @@ func (m *MinidiceRound) initGameCallback(event pubsub.Message) {
 }
 
 func (m *MinidiceRound) startRoundCallback(event pubsub.Message) {
-	m.diffSinceStarted.Store(time.Now().Unix())
 	eventData := event.Data().(MinidiceStartRoundData)
 	m.logger.Info("Received internal start round event", "denom", eventData.Denom)
+
+	m.sinceStartsMu.Lock()
+	defer m.sinceStartsMu.Unlock()
+	m.sinceStarts[eventData.Denom] = time.Now().Unix()
 
 	info, err := m.tplusClient.GetActiveGame(eventData.Denom)
 	if err != nil {
@@ -302,7 +306,10 @@ func (m *MinidiceRound) finalizeRoundCallback(event pubsub.Message) {
 	eventData := event.Data().(MinidiceFinalizeRoundData)
 	m.logger.Info("received internal finalize round event", "denom", eventData.Denom)
 
-	t := m.diffSinceStarted.Load()
+	m.sinceStartsMu.Lock()
+	defer m.sinceStartsMu.Unlock()
+	t := m.sinceStarts[eventData.Denom]
+
 	startedIn := time.Now().Unix() - t
 	diff := m.options.RoundInterval - int(startedIn)
 	if diff > 0 {
