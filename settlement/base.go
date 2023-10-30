@@ -168,8 +168,8 @@ func (b *BaseLayerClient) stateUpdatesHandler(ready chan bool) {
 	for {
 		select {
 		case event := <-subscription.Out():
-			b.logger.Debug("received state update event", "eventData", event.Data())
 			eventData := event.Data().(*EventDataNewSettlementBatchAccepted)
+			b.logger.Debug("received state update event", "latestHeight", eventData.EndHeight)
 			atomic.StoreUint64(&b.latestHeight, eventData.EndHeight)
 			// Emit new batch event
 			newBatchEventData := &EventDataNewBatchAccepted{
@@ -179,7 +179,7 @@ func (b *BaseLayerClient) stateUpdatesHandler(ready chan bool) {
 			utils.SubmitEventOrPanic(b.ctx, b.pubsub, newBatchEventData,
 				map[string][]string{EventTypeKey: {EventNewBatchAccepted}})
 		case <-subscription.Cancelled():
-			b.logger.Info("subscription canceled")
+			b.logger.Info("stateUpdatesHandler subscription canceled")
 			return
 		case <-b.ctx.Done():
 			b.logger.Info("Context done. Exiting state update handler")

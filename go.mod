@@ -7,10 +7,11 @@ require (
 	cosmossdk.io/errors v1.0.0-beta.7
 	github.com/2plus-labs/2plus-core v0.0.0-20230809144210-01e4e5936ed1
 	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/avast/retry-go/v4 v4.5.0
 	github.com/celestiaorg/go-cnc v0.4.2
 	github.com/centrifuge/go-substrate-rpc-client/v4 v4.0.12
 	github.com/dgraph-io/badger/v3 v3.2103.3
-	github.com/dymensionxyz/cosmosclient v0.4.0-beta
+	github.com/dymensionxyz/cosmosclient v0.4.2-beta
 	github.com/dymensionxyz/dymension v0.2.0-beta.0.20230607115558-745644a96ea6
 	github.com/go-kit/kit v0.12.0
 	github.com/gofrs/uuid v4.3.0+incompatible
@@ -20,7 +21,6 @@ require (
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/informalsystems/tm-load-test v1.3.0
-	github.com/ipfs/go-log v1.0.5
 	github.com/libp2p/go-libp2p v0.26.0
 	github.com/libp2p/go-libp2p-core v0.20.1
 	github.com/libp2p/go-libp2p-kad-dht v0.21.0
@@ -43,10 +43,12 @@ require (
 	cosmossdk.io/math v1.0.0-rc.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/Workiva/go-datastructures v1.0.53 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/btcsuite/btcd v0.22.2 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
+	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cometbft/cometbft-db v0.7.0 // indirect
 	github.com/cosmos/cosmos-proto v1.0.0-beta.3 // indirect
 	github.com/cosmos/gogoproto v1.4.8 // indirect
@@ -57,8 +59,8 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/ethereum/go-ethereum v1.12.0 // indirect
+	github.com/evmos/evmos/v12 v12.1.6 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
@@ -66,6 +68,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/holiman/uint256 v1.2.2-0.20230321075855-87b91420868c // indirect
+	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/lib/pq v1.10.7 // indirect
 	github.com/libp2p/go-yamux/v4 v4.0.0 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
@@ -81,7 +84,11 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tecbot/gorocksdb v0.0.0-20191217155057-f0fad39f321c // indirect
 	github.com/tidwall/btree v1.5.0 // indirect
-	github.com/tklauser/go-sysconf v0.3.10 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/vedhavyas/go-subkey v1.0.3 // indirect
 	github.com/zondax/ledger-go v0.14.1 // indirect
 	go.uber.org/dig v1.15.0 // indirect
@@ -242,7 +249,7 @@ require (
 	github.com/golang/glog v1.1.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect
 	github.com/ignite/cli v0.25.2
-	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	golang.org/x/tools v0.7.0 // indirect

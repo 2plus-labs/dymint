@@ -10,8 +10,6 @@ import (
 const (
 	// DefaultListenAddress is a default listen address for P2P client.
 	DefaultListenAddress = "/ip4/0.0.0.0/tcp/7676"
-	// Version is a default dymint version for P2P client.
-	Version = "0.2.2"
 
 	DefaultHomeDir = "sequencer_keys"
 	DefaultChainID = "dymint-testnet"
@@ -33,7 +31,7 @@ func DefaultConfig(home, chainId string) *NodeConfig {
 			BatchSubmitMaxTime:     30 * time.Second,
 			NamespaceID:            "000000000000ffff",
 			BlockBatchSize:         500,
-			BlockBatchMaxSizeBytes: 1500000},
+			BlockBatchMaxSizeBytes: 500000},
 		DALayer:         "mock",
 		SettlementLayer: "mock",
 		Instrumentation: &InstrumentationConfig{
