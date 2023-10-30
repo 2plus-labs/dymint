@@ -9,12 +9,13 @@ import (
 
 func testConfig() Config {
 	return Config{
-		KeyringBackend:   "test",
-		NodeAddress:      "http://127.0.0.1:26657",
-		KeyringHomeDir:   "~/.2plus",
-		TplusAccountName: "tpluser",
-		GasLimit:         DefaultGasLimit,
-		GasPrices:        "0.025uplus",
+		KeyringBackend: "test",
+		NodeAddress:    "http://127.0.0.1:26657",
+		KeyringHomeDir: "~/.2plus",
+		AccountName:    "tpluser",
+		GasLimit:       DefaultGasLimit,
+		GasPrices:      "0.025uplus",
+		GasFees:        "",
 	}
 }
 

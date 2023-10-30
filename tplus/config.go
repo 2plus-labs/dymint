@@ -10,13 +10,13 @@ const (
 )
 
 type Config struct {
-	KeyringBackend   string `mapstructure:"keyring_backend"`
-	NodeAddress      string `mapstructure:"node_address"`
-	KeyringHomeDir   string `mapstructure:"keyring_home_dir"`
-	TplusAccountName string `mapstructure:"tplus_account_name"`
-	GasLimit         uint64 `mapstructure:"gas_limit"`
-	GasPrices        string `mapstructure:"gas_prices"`
-	GasFees          string `mapstructure:"gas_fees"`
+	KeyringBackend string `mapstructure:"keyring_backend"`
+	NodeAddress    string `mapstructure:"node_address"`
+	KeyringHomeDir string `mapstructure:"keyring_home_dir"`
+	AccountName    string `mapstructure:"account_name"`
+	GasLimit       uint64 `mapstructure:"gas_limit"`
+	GasPrices      string `mapstructure:"gas_prices"`
+	GasFees        string `mapstructure:"gas_fees"`
 }
 
 func (c Config) Validate() error {
@@ -31,11 +31,12 @@ func (c Config) Validate() error {
 
 func DefaultConfig() *Config {
 	return &Config{
-		KeyringBackend:   "test",
-		NodeAddress:      "http://127.0.0.1:26657",
-		KeyringHomeDir:   "~/.2plus",
-		TplusAccountName: "rol-user",
-		GasLimit:         DefaultGasLimit,
-		GasPrices:        "0.025uplus",
+		KeyringBackend: "test",
+		NodeAddress:    "http://127.0.0.1:26657",
+		KeyringHomeDir: "~/.2plus",
+		AccountName:    "rol-user",
+		GasLimit:       DefaultGasLimit,
+		GasPrices:      "0.025uplus",
+		GasFees:        "",
 	}
 }

@@ -81,6 +81,8 @@ type Manager struct {
 	syncCache map[uint64]*types.Block
 
 	logger log.Logger
+
+	tplusCfg *tplus.Config
 }
 
 // getInitialState tries to load lastState from Store, and if it's not available it reads GenesisDoc.
@@ -108,6 +110,7 @@ func NewManager(
 	pubsub *pubsub.Server,
 	p2pClient *p2p.Client,
 	logger log.Logger,
+	tplusCfg *tplus.Config,
 ) (*Manager, error) {
 
 	proposerAddress, err := getAddress(proposerKey)
@@ -170,6 +173,7 @@ func NewManager(
 		shouldProduceBlocksCh: make(chan bool, 1),
 		produceEmptyBlockCh:   make(chan bool, 1),
 		logger:                logger,
+		tplusCfg:              tplusCfg,
 	}
 
 	return agg, nil
@@ -200,11 +204,9 @@ func (m *Manager) Start(ctx context.Context, isAggregator bool) error {
 
 func (m *Manager) StartMinidiceRound() error {
 	m.logger.Info("Started minidice round")
-	// Hardcode
-	tplusConfig := tplus.DefaultConfig()
-	minidiceRound, err := round.NewMinidiceRound(tplusConfig, round.DefaultOptions(),
+	minidiceRound, err := round.NewMinidiceRound(m.tplusCfg, round.DefaultOptions(),
 		m.logger, m.pubsub,
-		tplusConfig.TplusAccountName)
+		m.tplusCfg.AccountName)
 	if err != nil {
 		m.logger.Error("minidice round init failed", "err", err)
 		return fmt.Errorf("minidice round init failed error: %w", err)

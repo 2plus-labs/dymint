@@ -84,6 +84,8 @@ func NewMinidiceRound(
 		ctlRoundRetryAttempts: 5,
 		ctlRoundRetryDelay:    300 * time.Millisecond,
 		ctlRoundRetryMaxDelay: 5 * time.Second,
+		sinceStarts:           map[string]int64{},
+		sinceStartsMu:         sync.Mutex{},
 	}
 
 	creatorAddr, err := m.tplusClient.GetAccountAddress(m.creator)
