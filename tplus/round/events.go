@@ -24,19 +24,19 @@ const (
 )
 
 type MinidiceInitGameData struct {
-	Denom string
+	GameId string
 }
 
 type MinidiceStartRoundData struct {
-	Denom string
+	GameId string
 }
 
 type MinidiceEndRoundData struct {
-	Denom string
+	GameId string
 }
 
 type MinidiceFinalizeRoundData struct {
-	Denom string
+	GameId string
 }
 
 var (

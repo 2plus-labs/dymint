@@ -88,16 +88,16 @@ func (t *TplusClient) GetAccountAddress(accountName string) (string, error) {
 	return addr, nil
 }
 
-func (t *TplusClient) GetActiveGame(denom string) (minidicetypes.ActiveGame, error) {
+func (t *TplusClient) GetActiveGame(gameId string) (minidicetypes.ActiveGame, error) {
 	gameInfo, err := t.minidiceQuery.GameInfo(context.Background(), &minidicetypes.QueryGameInfoRequest{
-		Denom: denom,
+		GameId: gameId,
 	})
 	if err != nil {
 		return minidicetypes.ActiveGame{}, err
 	}
 
 	ac := minidicetypes.ActiveGame{
-		Denom:         denom,
+		Denom:         gameInfo.GameInfo.Denom,
 		RoundId:       gameInfo.GameInfo.CurrentRoundId,
 		GameId:        gameInfo.GameInfo.GameId,
 		StartRound:    gameInfo.RoundInfo.StartRound,
