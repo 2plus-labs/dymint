@@ -34,8 +34,11 @@ type MinidiceRound struct {
 	logger     log.Logger
 	pubsub     *pubsub.Server
 	options    *MinidiceOptions
+
 	// tplusClient for query and broadcast tx to tplus chain app
+	clientMu    sync.Mutex
 	tplusClient *tplus.TplusClient
+
 	creator     string
 	creatorAddr string
 
@@ -48,8 +51,8 @@ type MinidiceRound struct {
 	currentRound uint32
 
 	// Time diff from started round in seconds by denom
-	sinceStartsMu sync.Mutex
-	sinceStarts   map[string]int64
+	diffSinceStartMu sync.RWMutex
+	diffSinceStarts  map[string]int64
 }
 
 func NewMinidiceRound(
@@ -79,13 +82,14 @@ func NewMinidiceRound(
 		pubsub:                pubsub,
 		logger:                logger,
 		tplusClient:           tplusClient,
+		clientMu:              sync.Mutex{},
 		creator:               creator,
 		currentRound:          0,
 		ctlRoundRetryAttempts: 5,
 		ctlRoundRetryDelay:    300 * time.Millisecond,
 		ctlRoundRetryMaxDelay: 5 * time.Second,
-		sinceStarts:           map[string]int64{},
-		sinceStartsMu:         sync.Mutex{},
+		diffSinceStarts:       map[string]int64{},
+		diffSinceStartMu:      sync.RWMutex{},
 	}
 
 	creatorAddr, err := m.tplusClient.GetAccountAddress(m.creator)
@@ -273,9 +277,9 @@ func (m *MinidiceRound) startRoundCallback(event pubsub.Message) {
 	eventData := event.Data().(MinidiceStartRoundData)
 	m.logger.Info("Received internal start round event", "game_id", eventData.GameId)
 
-	m.sinceStartsMu.Lock()
-	defer m.sinceStartsMu.Unlock()
-	m.sinceStarts[eventData.GameId] = time.Now().Unix()
+	m.diffSinceStartMu.Lock()
+	m.diffSinceStarts[eventData.GameId] = time.Now().Unix()
+	m.diffSinceStartMu.Unlock()
 
 	info, err := m.tplusClient.GetActiveGame(eventData.GameId)
 	if err != nil {
@@ -308,9 +312,9 @@ func (m *MinidiceRound) finalizeRoundCallback(event pubsub.Message) {
 	eventData := event.Data().(MinidiceFinalizeRoundData)
 	m.logger.Info("received internal finalize round event", "denom", eventData.GameId)
 
-	m.sinceStartsMu.Lock()
-	defer m.sinceStartsMu.Unlock()
-	t := m.sinceStarts[eventData.GameId]
+	m.diffSinceStartMu.RLock()
+	t := m.diffSinceStarts[eventData.GameId]
+	m.diffSinceStartMu.RUnlock()
 
 	startedIn := time.Now().Unix() - t
 	diff := m.options.RoundInterval - int(startedIn)
@@ -334,6 +338,10 @@ func (m *MinidiceRound) startRound(gameId string) error {
 		GameId:  gameId,
 	}
 	m.logger.Info("MinidiceRound", "broadcast startRound")
+
+	m.clientMu.Lock()
+	defer m.clientMu.Unlock()
+
 	err := retry.Do(func() error {
 		txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
 		if err != nil || txResp.Code != 0 {
@@ -355,6 +363,10 @@ func (m *MinidiceRound) endRound(gameId string) error {
 		GameId:  gameId,
 	}
 	m.logger.Info("MinidiceRound", "broadcast endRound", msg.String())
+
+	m.clientMu.Lock()
+	defer m.clientMu.Unlock()
+
 	err := retry.Do(func() error {
 		txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
 		if err != nil || txResp.Code != 0 {
@@ -376,6 +388,10 @@ func (m *MinidiceRound) finalizeRound(gameId string) error {
 		GameId:  gameId,
 	}
 	m.logger.Info("MinidiceRound", "broadcast finalizeRound")
+
+	m.clientMu.Lock()
+	defer m.clientMu.Unlock()
+
 	err := retry.Do(func() error {
 		txResp, err := m.tplusClient.BroadcastTx(m.creator, &msg)
 		if err != nil || txResp.Code != 0 {
