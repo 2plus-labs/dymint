@@ -3,6 +3,7 @@ package round
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/dymensionxyz/dymint/tplus"
 	"github.com/dymensionxyz/dymint/utils"
 	"github.com/tendermint/tendermint/libs/pubsub"
+	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
@@ -389,4 +391,25 @@ func (m *MinidiceRound) finalizeRound(gameId string) error {
 	m.logger.Info("finalizeRoundCallback", "current round", m.currentRound)
 
 	return err
+}
+
+func (m *MinidiceRound) FilterRoundEvent(state *tmstate.ABCIResponses) error {
+	for _, deliverTx := range state.DeliverTxs {
+		m.logger.Debug("FilterRoundEvent", "deliverTx", deliverTx.String())
+		if deliverTx.Code != 0 {
+			continue
+		}
+		// TODO: filter more event by type init_game, start_round, finalize_round, end_round
+		events := FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
+		for _, event := range events {
+			gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+			if err != nil {
+				return fmt.Errorf("error while getting mini-dice game id: %s", err)
+			}
+			gameId := string(gameIdAttr.GetValue())
+			m.logger.Info("FilterRoundEvent", "gameId", gameId)
+			// TODO: compose a new message into queue
+		}
+	}
+	return nil
 }

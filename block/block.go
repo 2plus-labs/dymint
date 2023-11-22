@@ -109,6 +109,14 @@ func (m *Manager) applyBlock(ctx context.Context, block *types.Block, commit *ty
 
 	m.store.SetHeight(block.Header.Height)
 
+	// add logic to filter round events
+	if m.roundManager != nil {
+		if err := m.roundManager.FilterRoundEvent(responses); err != nil {
+			m.logger.Error("Failed to filter round event", "error", err)
+			return err
+		}
+	}
+
 	return nil
 }
 

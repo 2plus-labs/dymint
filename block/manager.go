@@ -82,7 +82,8 @@ type Manager struct {
 	logger log.Logger
 
 	// add tplus config
-	tplusCfg *tplus.Config
+	tplusCfg     *tplus.Config
+	roundManager round.Manager
 }
 
 // getInitialState tries to load lastState from Store, and if it's not available it reads GenesisDoc.
@@ -174,6 +175,7 @@ func NewManager(
 		produceEmptyBlockCh:   make(chan bool, 1),
 		logger:                logger,
 		tplusCfg:              tplusCfg,
+		roundManager:          nil,
 	}
 
 	return agg, nil
@@ -211,6 +213,9 @@ func (m *Manager) StartMinidiceRound() error {
 		m.logger.Error("minidice round init failed", "err", err)
 		return fmt.Errorf("minidice round init failed error: %w", err)
 	}
+
+	m.roundManager = minidiceRound
+
 	//m.minidiceRound = minidiceRound
 	err = minidiceRound.Start()
 	if err != nil {
