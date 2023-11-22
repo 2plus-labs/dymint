@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dymensionxyz/dymint/settlement"
+	"github.com/dymensionxyz/dymint/tplus"
 )
 
 const (
@@ -38,6 +39,7 @@ func DefaultConfig(home, chainId string) *NodeConfig {
 			Prometheus:           false,
 			PrometheusListenAddr: ":2112",
 		},
+		TplusConfig: tplus.DefaultConfig(),
 	}
 
 	if home == "" {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dymensionxyz/dymint/settlement"
+	"github.com/dymensionxyz/dymint/tplus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -32,6 +33,7 @@ type NodeConfig struct {
 	SettlementLayer    string                 `mapstructure:"settlement_layer"`
 	SettlementConfig   settlement.Config      `mapstructure:",squash"`
 	Instrumentation    *InstrumentationConfig `mapstructure:"instrumentation"`
+	TplusConfig        *tplus.Config          `mapstructure:"tplus"`
 }
 
 // BlockManagerConfig consists of all parameters required by BlockManagerConfig

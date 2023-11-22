@@ -9,6 +9,7 @@ import (
 	"github.com/dymensionxyz/dymint/p2p"
 	"github.com/dymensionxyz/dymint/settlement"
 	"github.com/dymensionxyz/dymint/testutil"
+	"github.com/dymensionxyz/dymint/tplus"
 	"github.com/libp2p/go-libp2p/core/crypto"
 
 	"github.com/tendermint/tendermint/libs/log"
@@ -107,7 +108,7 @@ func getManager(conf config.BlockManagerConfig, settlementlc settlement.LayerI, 
 	}
 
 	manager, err := NewManager(proposerKey, conf, genesis, managerStore, mp, proxyApp, dalc, settlementlc, nil,
-		pubsubServer, p2pClient, logger)
+		pubsubServer, p2pClient, logger, tplus.DefaultConfig())
 	if err != nil {
 		return nil, err
 	}

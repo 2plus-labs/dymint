@@ -117,5 +117,16 @@ prometheus = {{ .Instrumentation.Prometheus }}
 # Address to listen for Prometheus collector(s) connections
 prometheus_listen_addr = "{{ .Instrumentation.PrometheusListenAddr }}"
 
+#######################################################
+###       Tplus Configuration Options     ###
+#######################################################
+[tplus]
+node_address = "{{ .TplusConfig.NodeAddress }}"
+gas_limit = {{ .TplusConfig.GasLimit }}
+gas_prices = "{{ .TplusConfig.GasPrices }}"
+gas_fees = "{{ .TplusConfig.GasFees }}"
+keyring_backend = "{{ .TplusConfig.KeyringBackend }}"
+keyring_home_dir = "{{ .TplusConfig.KeyringHomeDir }}"
+account_name = "{{ .TplusConfig.AccountName }}"
 
 `

@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 
 	"code.cloudfoundry.org/go-diodes"
+	"github.com/dymensionxyz/dymint/tplus"
+	"github.com/dymensionxyz/dymint/tplus/round"
 
 	"github.com/avast/retry-go/v4"
 	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
@@ -78,6 +80,9 @@ type Manager struct {
 	syncCache map[uint64]*types.Block
 
 	logger log.Logger
+
+	// add tplus config
+	tplusCfg *tplus.Config
 }
 
 // getInitialState tries to load lastState from Store, and if it's not available it reads GenesisDoc.
@@ -105,6 +110,7 @@ func NewManager(
 	pubsub *pubsub.Server,
 	p2pClient *p2p.Client,
 	logger log.Logger,
+	tplusCfg *tplus.Config,
 ) (*Manager, error) {
 
 	proposerAddress, err := getAddress(proposerKey)
@@ -167,6 +173,7 @@ func NewManager(
 		shouldProduceBlocksCh: make(chan bool, 1),
 		produceEmptyBlockCh:   make(chan bool, 1),
 		logger:                logger,
+		tplusCfg:              tplusCfg,
 	}
 
 	return agg, nil
@@ -186,6 +193,30 @@ func (m *Manager) Start(ctx context.Context, isAggregator bool) error {
 	go m.SyncTargetLoop(ctx)
 	m.EventListener(ctx)
 
+	m.logger.Info("Starting the minidice round")
+	if err := m.StartMinidiceRound(); err != nil {
+		m.logger.Error("Failed to start minidice round", "err", err)
+		return err
+	}
+
+	return nil
+}
+
+func (m *Manager) StartMinidiceRound() error {
+	m.logger.Info("Started minidice round")
+	minidiceRound, err := round.NewMinidiceRound(m.tplusCfg, round.DefaultOptions(),
+		m.logger, m.pubsub,
+		m.tplusCfg.AccountName)
+	if err != nil {
+		m.logger.Error("minidice round init failed", "err", err)
+		return fmt.Errorf("minidice round init failed error: %w", err)
+	}
+	//m.minidiceRound = minidiceRound
+	err = minidiceRound.Start()
+	if err != nil {
+		m.logger.Error("minidice round start failed", "err", err)
+		return fmt.Errorf("error while starting minidice round: %w", err)
+	}
 	return nil
 }
 
