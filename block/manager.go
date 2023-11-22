@@ -211,7 +211,6 @@ func (m *Manager) StartMinidiceRound() error {
 		m.logger.Error("minidice round init failed", "err", err)
 		return fmt.Errorf("minidice round init failed error: %w", err)
 	}
-	//m.minidiceRound = minidiceRound
 	err = minidiceRound.Start()
 	if err != nil {
 		m.logger.Error("minidice round start failed", "err", err)
