@@ -55,7 +55,8 @@ func (e *Executor) serve(ctx context.Context) error {
 	for {
 		items, err := e.msgs.Pop(ctx, e.maxBatch)
 		if err != nil {
-			return err
+			e.logger.Error("executor pop failed: ", "err", err)
+			panic(err)
 		}
 		e.logger.Info("executor: ", "sender", e.sender, "broadcast msgs", len(items))
 		err = retry.Do(func() error {
@@ -71,6 +72,6 @@ func (e *Executor) serve(ctx context.Context) error {
 			e.logger.Error("broadcast tx error in last retry", "err", err)
 			panic(err)
 		}
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 	}
 }

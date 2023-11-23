@@ -88,7 +88,7 @@ func NewMinidiceRound(
 	logger.Info("minidice round", "creator", creator, "creator addr", creatorAddr)
 	m.creatorAddr = creatorAddr
 
-	e := executor.NewExecutor(ctx, logger, tplusClient, m.creator, 10)
+	e := executor.NewExecutor(ctx, logger, tplusClient, m.creator, 5)
 	m.e = e
 
 	return m, nil
@@ -97,7 +97,7 @@ func NewMinidiceRound(
 func (m *MinidiceRound) Start() error {
 	activeGames := m.getActiveGames()
 	if len(activeGames) > 0 {
-		go m.recoverActiveGame(activeGames)
+		go m.recoverActiveGames(activeGames)
 	}
 	return nil
 }
@@ -113,11 +113,13 @@ func (m *MinidiceRound) delayPush(msg sdk.Msg, delay time.Duration) {
 	}
 }
 
-func (m *MinidiceRound) recoverActiveGame(activeGames []*minidicetypes.ActiveGame) {
+func (m *MinidiceRound) recoverActiveGames(activeGames []*minidicetypes.ActiveGame) {
 	time.Sleep(200 * time.Millisecond)
 	for _, ag := range activeGames {
 		switch ag.State {
-		case minidicetypes.RoundState_ROUND_STATE_NOT_STARTED, minidicetypes.RoundState_ROUND_STATE_FINALIZED:
+		case minidicetypes.RoundState_ROUND_STATE_NOT_STARTED:
+			// Do nothing
+		case minidicetypes.RoundState_ROUND_STATE_FINALIZED:
 			msg := &minidicetypes.MsgStartRound{
 				GameId:  ag.GameId,
 				Creator: m.creatorAddr,
@@ -131,7 +133,7 @@ func (m *MinidiceRound) recoverActiveGame(activeGames []*minidicetypes.ActiveGam
 				Creator: m.creatorAddr,
 				GameId:  ag.GameId,
 			}
-			if diffSec > 0 {
+			if diffSec >= 0 {
 				m.e.Push(msg)
 			} else {
 				delay := time.Duration(-diffSec) * time.Second
@@ -248,7 +250,12 @@ func (m *MinidiceRound) handleFinalizeRound(events []abci.Event) error {
 
 		startedIn := time.Now().Unix() - t
 		diff := m.options.RoundInterval - int(startedIn)
-		m.startRoundOrDelay(gameId, time.Duration(diff)*time.Second)
+		if diff > 0 {
+			m.startRoundOrDelay(gameId, time.Duration(diff)*time.Second)
+		} else {
+			m.startRoundOrDelay(gameId, 0)
+		}
+
 	}
 	return nil
 }
