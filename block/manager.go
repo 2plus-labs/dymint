@@ -83,7 +83,7 @@ type Manager struct {
 
 	// add tplus config
 	tplusCfg     *tplus.Config
-	roundManager round.Manager
+	roundManager *round.MinidiceRound
 }
 
 // getInitialState tries to load lastState from Store, and if it's not available it reads GenesisDoc.
@@ -217,7 +217,7 @@ func (m *Manager) StartMinidiceRound() error {
 	m.roundManager = minidiceRound
 
 	//m.minidiceRound = minidiceRound
-	err = minidiceRound.Start()
+	err = m.roundManager.Start()
 	if err != nil {
 		m.logger.Error("minidice round start failed", "err", err)
 		return fmt.Errorf("error while starting minidice round: %w", err)

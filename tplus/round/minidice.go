@@ -2,16 +2,20 @@ package round
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	minidicetypes "github.com/2plus-labs/2plus-core/x/minidice/types"
 	"github.com/avast/retry-go"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/dymensionxyz/dymint/log"
 	"github.com/dymensionxyz/dymint/tplus"
+	"github.com/dymensionxyz/dymint/tplus/executor"
+	"github.com/dymensionxyz/dymint/tplus/queue"
 	"github.com/dymensionxyz/dymint/utils"
+	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/libs/pubsub"
 	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
@@ -52,6 +56,8 @@ type MinidiceRound struct {
 	// Time diff from started round in seconds by denom
 	sinceStartsMu sync.Mutex
 	sinceStarts   map[string]int64
+	queueExec     *queue.Queue
+	execBroadcast *executor.Executor
 }
 
 func NewMinidiceRound(
@@ -88,7 +94,9 @@ func NewMinidiceRound(
 		ctlRoundRetryMaxDelay: 5 * time.Second,
 		sinceStarts:           map[string]int64{},
 		sinceStartsMu:         sync.Mutex{},
+		queueExec:             queue.NewQueue(),
 	}
+	m.execBroadcast = executor.NewExecutor(ctx, logger, tplusClient, creator, 3, m.queueExec)
 
 	creatorAddr, err := m.tplusClient.GetAccountAddress(m.creator)
 	if err != nil {
@@ -102,60 +110,68 @@ func NewMinidiceRound(
 }
 
 func (m *MinidiceRound) Start() error {
-	err := m.tplusClient.StartEventListener()
-	if err != nil {
-		m.logger.Error("minidice round start", "err", err)
-		return err
-	}
-	m.subscribeAndHandleEvents(m.ctx)
-
-	go m.filterEventGame(EventMinidiceInitGame, QueryMinidiceInitGame, func(raw ctypes.ResultEvent) (any, error) {
-		gameIdVals, ok := raw.Events["InitGame.game_id"]
-		if !ok {
-			return MinidiceInitGameData{}, errors.New("failed get game_id from events")
-		}
-		if len(gameIdVals) == 0 {
-			return MinidiceInitGameData{}, errors.New("list game game_id is empty")
-		}
-		return MinidiceInitGameData{GameId: gameIdVals[0]}, nil
-	})
-
-	go m.filterEventGame(EventMinidiceStartRound, QueryMinidiceStartRound, func(raw ctypes.ResultEvent) (any, error) {
-		gameIdVals, ok := raw.Events["StartRound.game_id"]
-		if !ok {
-			return MinidiceStartRoundData{}, errors.New("failed get game_id from events")
-		}
-		if len(gameIdVals) == 0 {
-			return MinidiceStartRoundData{}, errors.New("list game game_id is empty")
-		}
-		return MinidiceStartRoundData{GameId: gameIdVals[0]}, nil
-	})
-
-	go m.filterEventGame(EventMinidiceFinalizeRound, QueryMinidiceFinalizeRound, func(raw ctypes.ResultEvent) (any, error) {
-		gameIdVals, ok := raw.Events["FinalizeRound.game_id"]
-		if !ok {
-			return MinidiceFinalizeRoundData{}, errors.New("failed get game_id from events")
-		}
-		if len(gameIdVals) == 0 {
-			return MinidiceFinalizeRoundData{}, errors.New("list game game_id is empty")
-		}
-		return MinidiceFinalizeRoundData{GameId: gameIdVals[0]}, nil
-	})
-
-	go m.filterEventGame(EventMinidiceEndRound, QueryMinidiceEndRound, func(raw ctypes.ResultEvent) (any, error) {
-		gameIdVals, ok := raw.Events["EndRound.game_id"]
-		if !ok {
-			return MinidiceEndRoundData{}, errors.New("failed get game_id from events")
-		}
-		if len(gameIdVals) == 0 {
-			return MinidiceEndRoundData{}, errors.New("list game game_id is empty")
-		}
-		return MinidiceEndRoundData{GameId: gameIdVals[0]}, nil
-	})
+	//err := m.tplusClient.StartEventListener()
+	//if err != nil {
+	//	m.logger.Error("minidice round start", "err", err)
+	//	return err
+	//}
+	//m.subscribeAndHandleEvents(m.ctx)
+	//
+	//go m.filterEventGame(EventMinidiceInitGame, QueryMinidiceInitGame, func(raw ctypes.ResultEvent) (any, error) {
+	//	gameIdVals, ok := raw.Events["InitGame.game_id"]
+	//	if !ok {
+	//		return MinidiceInitGameData{}, errors.New("failed get game_id from events")
+	//	}
+	//	if len(gameIdVals) == 0 {
+	//		return MinidiceInitGameData{}, errors.New("list game game_id is empty")
+	//	}
+	//	return MinidiceInitGameData{GameId: gameIdVals[0]}, nil
+	//})
+	//
+	//go m.filterEventGame(EventMinidiceStartRound, QueryMinidiceStartRound, func(raw ctypes.ResultEvent) (any, error) {
+	//	gameIdVals, ok := raw.Events["StartRound.game_id"]
+	//	if !ok {
+	//		return MinidiceStartRoundData{}, errors.New("failed get game_id from events")
+	//	}
+	//	if len(gameIdVals) == 0 {
+	//		return MinidiceStartRoundData{}, errors.New("list game game_id is empty")
+	//	}
+	//	return MinidiceStartRoundData{GameId: gameIdVals[0]}, nil
+	//})
+	//
+	//go m.filterEventGame(EventMinidiceFinalizeRound, QueryMinidiceFinalizeRound, func(raw ctypes.ResultEvent) (any, error) {
+	//	gameIdVals, ok := raw.Events["FinalizeRound.game_id"]
+	//	if !ok {
+	//		return MinidiceFinalizeRoundData{}, errors.New("failed get game_id from events")
+	//	}
+	//	if len(gameIdVals) == 0 {
+	//		return MinidiceFinalizeRoundData{}, errors.New("list game game_id is empty")
+	//	}
+	//	return MinidiceFinalizeRoundData{GameId: gameIdVals[0]}, nil
+	//})
+	//
+	//go m.filterEventGame(EventMinidiceEndRound, QueryMinidiceEndRound, func(raw ctypes.ResultEvent) (any, error) {
+	//	gameIdVals, ok := raw.Events["EndRound.game_id"]
+	//	if !ok {
+	//		return MinidiceEndRoundData{}, errors.New("failed get game_id from events")
+	//	}
+	//	if len(gameIdVals) == 0 {
+	//		return MinidiceEndRoundData{}, errors.New("list game game_id is empty")
+	//	}
+	//	return MinidiceEndRoundData{GameId: gameIdVals[0]}, nil
+	//})
+	//
 
 	go func() {
+		err := m.execBroadcast.Serve(m.ctx)
+		if err != nil {
+			m.logger.Error("minidice round execBroadcast", "err", err)
+			panic(err)
+		}
+	}()
+	go func() {
 		time.Sleep(1 * time.Second)
-		err = m.maybeRecover()
+		err := m.maybeRecover()
 		if err != nil {
 			m.logger.Error("minidice round maybeRecover", "err", err)
 			panic(err)
@@ -169,43 +185,62 @@ func (m *MinidiceRound) maybeRecover() error {
 	activeGames := m.getActiveGames()
 	m.logger.Info("maybeRecover", "list active games:", activeGames)
 	if len(activeGames) > 0 {
+		msgRound := make([]queue.MsgInQueue, 0)
 		for _, ag := range activeGames {
 			m.logger.Info("active game:", "denom", ag.Denom, "state", ag.State, "game_id", ag.GameId)
 			switch ag.State {
 			case minidicetypes.RoundState_ROUND_STATE_NOT_STARTED, minidicetypes.RoundState_ROUND_STATE_FINALIZED:
-				err := m.startRound(ag.GameId)
-				if err != nil {
-					m.logger.Error("recover call startRound err", "error", err)
-					panic(err)
-				}
+				msgRound = append(msgRound, queue.MsgInQueue{
+					Messages: []sdk.Msg{minidicetypes.NewMsgStartRound(m.creatorAddr, ag.GameId)},
+					TimeExec: time.Now().Unix(),
+				})
+				//err := m.startRound(ag.GameId)
+				//if err != nil {
+				//	m.logger.Error("recover call startRound err", "error", err)
+				//	panic(err)
+				//}
 			case minidicetypes.RoundState_ROUND_STATE_STARTED:
 				timeNow := time.Now().UTC().Unix()
 				timeEndRound := ag.EndRound
 				diffSec := timeNow - timeEndRound
 				m.logger.Info("maybeRecover", "diff time", diffSec)
-				var err error
+				//var err error
 				if diffSec > 0 {
-					err = m.endRound(ag.GameId)
+					msgRound = append(msgRound, queue.MsgInQueue{
+						Messages: []sdk.Msg{minidicetypes.NewMsgEndRound(m.creatorAddr, ag.GameId)},
+						TimeExec: time.Now().Unix(),
+					})
+					//err = m.endRound(ag.GameId)
 				} else {
-					t := time.NewTicker(time.Duration(-diffSec) * time.Second)
-					defer t.Stop()
-					<-t.C
-					err = m.endRound(ag.GameId)
+					msgRound = append(msgRound, queue.MsgInQueue{
+						Messages: []sdk.Msg{minidicetypes.NewMsgEndRound(m.creatorAddr, ag.GameId)},
+						TimeExec: time.Now().Unix() - diffSec,
+					})
+					//t := time.NewTicker(time.Duration(-diffSec) * time.Second)
+					//defer t.Stop()
+					//<-t.C
+					//err = m.endRound(ag.GameId)
 				}
 
-				if err != nil {
-					m.logger.Error("recover call endRound err", "error", err)
-					panic(err)
-				}
+				//if err != nil {
+				//	m.logger.Error("recover call endRound err", "error", err)
+				//	panic(err)
+				//}
 			case minidicetypes.RoundState_ROUND_STATE_ENDED:
-				err := m.finalizeRound(ag.GameId)
-				if err != nil {
-					m.logger.Error("recover call startRound err", "error", err)
-					panic(err)
-				}
+				msgRound = append(msgRound, queue.MsgInQueue{
+					Messages: []sdk.Msg{&minidicetypes.MsgFinalizeRound{Creator: m.creatorAddr, GameId: ag.GameId}},
+					TimeExec: time.Now().Unix(),
+				})
+				//err := m.finalizeRound(ag.GameId)
+				//if err != nil {
+				//	m.logger.Error("recover call startRound err", "error", err)
+				//	panic(err)
+				//}
 			}
-			time.Sleep(200 * time.Millisecond)
+			//time.Sleep(200 * time.Millisecond)
 		}
+		m.logger.Info("maybeRecover", "msgRound", spew.Sdump(msgRound))
+		m.queueExec.PushBatch(msgRound)
 	}
 	return nil
 }
@@ -395,21 +430,143 @@ func (m *MinidiceRound) finalizeRound(gameId string) error {
 
 func (m *MinidiceRound) FilterRoundEvent(state *tmstate.ABCIResponses) error {
 	for _, deliverTx := range state.DeliverTxs {
-		m.logger.Debug("FilterRoundEvent", "deliverTx", deliverTx.String())
+		m.logger.Error("FilterRoundEvent", "deliverTx", deliverTx.String())
 		if deliverTx.Code != 0 {
 			continue
 		}
-		// TODO: filter more event by type init_game, start_round, finalize_round, end_round
-		events := FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
-		for _, event := range events {
-			gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+
+		// filter init game event
+		events := FindEventsByType(deliverTx.Events, minidicetypes.EventTypeInitGame)
+		if len(events) > 0 {
+			msg, err := m.FilterInitGameEvent(events, m.creatorAddr)
 			if err != nil {
-				return fmt.Errorf("error while getting mini-dice game id: %s", err)
+				m.logger.Error("FilterRoundEvent", "error", err)
+				return err
 			}
-			gameId := string(gameIdAttr.GetValue())
-			m.logger.Info("FilterRoundEvent", "gameId", gameId)
-			// TODO: compose a new message into queue
+			m.logger.Error("FilterRoundEvent", "msg", spew.Sdump(msg))
+			m.queueExec.PushBatch(msg)
+		}
+
+		// filter start round event
+		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
+		if len(events) > 0 {
+			msg, err := m.FilterStartRoundEvent(events, m.creatorAddr)
+			if err != nil {
+				m.logger.Error("FilterRoundEvent", "error", err)
+				return err
+			}
+			m.logger.Error("FilterRoundEvent", "msg", spew.Sdump(msg))
+			m.queueExec.PushBatch(msg)
+		}
+
+		// filter end round event
+		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeEndRound)
+		if len(events) > 0 {
+			msg, err := m.FilterEndRoundEvent(events, m.creatorAddr)
+			if err != nil {
+				m.logger.Error("FilterRoundEvent", "error", err)
+				return err
+			}
+			m.logger.Error("FilterRoundEvent", "msg", spew.Sdump(msg))
+			m.queueExec.PushBatch(msg)
+		}
+
+		// filter finalize round event
+		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeFinalizeRound)
+		if len(events) > 0 {
+			msg, err := m.FilterFinalizeRoundEvent(events, m.creatorAddr)
+			if err != nil {
+				m.logger.Error("FilterRoundEvent", "error", err)
+				return err
+			}
+			m.logger.Error("FilterRoundEvent", "msg", spew.Sdump(msg))
+			m.queueExec.PushBatch(msg)
 		}
 	}
+
 	return nil
+}
+
+func (m *MinidiceRound) FilterInitGameEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+	var msgStartRounds []queue.MsgInQueue
+	for _, event := range events {
+		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		if err != nil {
+			return nil, fmt.Errorf("error while getting mini-dice game id: %s", err)
+		}
+		gameId := string(gameIdAttr.GetValue())
+		msgStartRounds = append(msgStartRounds, queue.MsgInQueue{
+			Messages: []sdk.Msg{minidicetypes.NewMsgStartRound(creator, gameId)},
+			TimeExec: time.Now().Unix(),
+		})
+	}
+
+	return msgStartRounds, nil
+}
+
+func (m *MinidiceRound) FilterStartRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+	var inQueues []queue.MsgInQueue
+	for _, event := range events {
+		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		if err != nil {
+			return nil, fmt.Errorf("error while getting mini-dice game id: %s", err)
+		}
+		gameId := string(gameIdAttr.GetValue())
+
+		inQueues = append(inQueues, queue.MsgInQueue{
+			Messages: []sdk.Msg{minidicetypes.NewMsgEndRound(creator, gameId)},
+			TimeExec: time.Now().Unix() + int64(m.options.StartRoundInterval),
+		})
+	}
+
+	return inQueues, nil
+}
+
+func (m *MinidiceRound) FilterEndRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+	var msgInQueues []queue.MsgInQueue
+	for _, event := range events {
+		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		if err != nil {
+			return nil, fmt.Errorf("error while getting mini-dice game id: %s", err)
+		}
+		gameId := string(gameIdAttr.GetValue())
+		msgInQueues = append(msgInQueues, queue.MsgInQueue{
+			Messages: []sdk.Msg{&minidicetypes.MsgFinalizeRound{
+				Creator: creator,
+				GameId:  gameId,
+			}},
+			TimeExec: time.Now().Unix(),
+		})
+	}
+
+	return msgInQueues, nil
+}
+
+func (m *MinidiceRound) FilterFinalizeRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+	var msgInQueues []queue.MsgInQueue
+	for _, event := range events {
+		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		if err != nil {
+			return nil, fmt.Errorf("error while getting mini-dice game id: %s", err)
+		}
+		gameId := string(gameIdAttr.GetValue())
+		msg := minidicetypes.NewMsgStartRound(creator, gameId)
+		msgInQueue := queue.MsgInQueue{
+			Messages: []sdk.Msg{msg},
+		}
+		m.sinceStartsMu.Lock()
+		defer m.sinceStartsMu.Unlock()
+		t := m.sinceStarts[gameId]
+
+		startedIn := time.Now().Unix() - t
+		diff := m.options.RoundInterval - int(startedIn)
+		if diff > 0 {
+			msgInQueue.TimeExec = time.Now().Unix() + int64(diff)
+		}
+		msgInQueue.TimeExec = time.Now().Unix()
+
+		msgInQueues = append(msgInQueues, msgInQueue)
+	}
+
+	return msgInQueues, nil
 }

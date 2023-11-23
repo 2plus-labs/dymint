@@ -5,6 +5,7 @@ import (
 
 	minidicetypes "github.com/2plus-labs/2plus-core/x/minidice/types"
 	"github.com/cosmos/cosmos-sdk/client/flags"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/dymensionxyz/cosmosclient/cosmosclient"
 	"github.com/ignite/cli/ignite/pkg/cosmosaccount"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
@@ -86,6 +87,23 @@ func (t *TplusClient) GetAccountAddress(accountName string) (string, error) {
 		return "", err
 	}
 	return addr, nil
+}
+
+func (t *TplusClient) GetAccountNumberSequence(accountName string) (uint64, uint64, error) {
+	account, err := t.Client.AccountRegistry.GetByName(accountName)
+	if err != nil {
+		return 0, 0, err
+	}
+	addr, err := account.Address(AddressPrefix)
+	if err != nil {
+		return 0, 0, err
+	}
+	accAddr, err := sdk.AccAddressFromBech32(addr)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return t.Factory.AccountRetriever().GetAccountNumberSequence(t.Client.Context(), accAddr)
 }
 
 func (t *TplusClient) GetActiveGame(gameId string) (minidicetypes.ActiveGame, error) {

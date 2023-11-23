@@ -22,7 +22,7 @@ func (m *Manager) applyBlock(ctx context.Context, block *types.Block, commit *ty
 		return nil
 	}
 
-	m.logger.Debug("Applying block", "height", block.Header.Height, "source", blockMetaData.source)
+	m.logger.Info("Applying block", "height", block.Header.Height, "source", blockMetaData.source)
 
 	// Check if alignment is needed due to incosistencies between the store and the app.
 	isAlignRequired, err := m.alignStoreWithApp(ctx, block)
@@ -110,7 +110,9 @@ func (m *Manager) applyBlock(ctx context.Context, block *types.Block, commit *ty
 	m.store.SetHeight(block.Header.Height)
 
 	// add logic to filter round events
+	m.logger.Error("Filtering round events--1", "height", block.Header.Height)
 	if m.roundManager != nil {
+		m.logger.Error("Filtering round events--2", "height", block.Header.Height)
 		if err := m.roundManager.FilterRoundEvent(responses); err != nil {
 			m.logger.Error("Failed to filter round event", "error", err)
 			return err
