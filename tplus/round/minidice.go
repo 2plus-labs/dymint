@@ -11,7 +11,6 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/dymensionxyz/dymint/log"
 	"github.com/dymensionxyz/dymint/tplus"
-	"github.com/dymensionxyz/dymint/tplus/executor"
 	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/libs/pubsub"
 	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
@@ -41,7 +40,7 @@ type MinidiceRound struct {
 	creator     string
 	creatorAddr string
 
-	e *executor.Executor
+	e *Executor
 
 	// Time diff from started round in seconds by denom
 	sinceStartsMu sync.Mutex
@@ -88,7 +87,7 @@ func NewMinidiceRound(
 	logger.Info("minidice round", "creator", creator, "creator addr", creatorAddr)
 	m.creatorAddr = creatorAddr
 
-	e := executor.NewExecutor(ctx, logger, tplusClient, m.creator, 5)
+	e := NewExecutor(ctx, logger, m, tplusClient, m.creator, 5, 100)
 	m.e = e
 
 	return m, nil
@@ -197,7 +196,7 @@ func (m *MinidiceRound) finalizeRoundOrDelay(gameId string, delay time.Duration)
 
 func (m *MinidiceRound) handleInitGame(events []abci.Event) error {
 	for _, event := range events {
-		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		gameIdAttr, err := tplus.FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
 		if err != nil {
 			return fmt.Errorf("error while getting mini-dice game id: %s", err)
 		}
@@ -207,9 +206,13 @@ func (m *MinidiceRound) handleInitGame(events []abci.Event) error {
 	return nil
 }
 
+func (m *MinidiceRound) PublishResponses(responses *tmstate.ABCIResponses) error {
+	return m.e.publishResponses(m.ctx, responses)
+}
+
 func (m *MinidiceRound) handleStartRound(events []abci.Event) error {
 	for _, event := range events {
-		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		gameIdAttr, err := tplus.FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
 		if err != nil {
 			return fmt.Errorf("error while getting mini-dice game id: %s", err)
 		}
@@ -226,7 +229,7 @@ func (m *MinidiceRound) handleStartRound(events []abci.Event) error {
 
 func (m *MinidiceRound) handleEndRound(events []abci.Event) error {
 	for _, event := range events {
-		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		gameIdAttr, err := tplus.FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
 		if err != nil {
 			return fmt.Errorf("error while getting mini-dice game id: %s", err)
 		}
@@ -238,7 +241,7 @@ func (m *MinidiceRound) handleEndRound(events []abci.Event) error {
 
 func (m *MinidiceRound) handleFinalizeRound(events []abci.Event) error {
 	for _, event := range events {
-		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
+		gameIdAttr, err := tplus.FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
 		if err != nil {
 			return fmt.Errorf("error while getting mini-dice game id: %s", err)
 		}
@@ -269,25 +272,25 @@ func (m *MinidiceRound) FilterRoundEvent(state *tmstate.ABCIResponses) error {
 		var events []abci.Event
 		var err error
 		// Filter Initgame
-		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeInitGame)
+		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeInitGame)
 		err = m.handleInitGame(events)
 		if err != nil {
 			return err
 		}
 		// Filter StartRound
-		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
+		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
 		err = m.handleStartRound(events)
 		if err != nil {
 			return err
 		}
 		// Filter EndRound
-		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeEndRound)
+		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeEndRound)
 		err = m.handleEndRound(events)
 		if err != nil {
 			return err
 		}
 		// Filter FinalizeRound
-		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeFinalizeRound)
+		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeFinalizeRound)
 		err = m.handleFinalizeRound(events)
 		if err != nil {
 			return err

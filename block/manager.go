@@ -83,7 +83,7 @@ type Manager struct {
 
 	// add tplus config
 	tplusCfg     *tplus.Config
-	roundManager round.Manager
+	roundManager *round.MinidiceRound
 }
 
 // getInitialState tries to load lastState from Store, and if it's not available it reads GenesisDoc.

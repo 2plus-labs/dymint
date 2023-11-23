@@ -111,8 +111,8 @@ func (m *Manager) applyBlock(ctx context.Context, block *types.Block, commit *ty
 
 	// add logic to filter round events
 	if m.roundManager != nil {
-		if err := m.roundManager.FilterRoundEvent(responses); err != nil {
-			m.logger.Error("Failed to filter round event", "error", err)
+		if err := m.roundManager.PublishResponses(responses); err != nil {
+			m.logger.Error("Failed to publish round events", "error", err)
 			return err
 		}
 	}
