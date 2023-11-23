@@ -69,7 +69,7 @@ func (e *Executor) serve(ctx context.Context) error {
 			retry.MaxDelay(e.ctlRoundRetryMaxDelay), retry.Attempts(e.ctlRoundRetryAttempts))
 		if err != nil {
 			e.logger.Error("broadcast tx error in last retry", "err", err)
-			return err
+			panic(err)
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
