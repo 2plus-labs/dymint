@@ -118,14 +118,6 @@ func (m *MinidiceRound) Start() error {
 			panic(err)
 		}
 	}()
-	//go func() {
-	//	time.Sleep(1 * time.Second)
-	//	err := m.maybeRecover()
-	//	if err != nil {
-	//		m.logger.Error("minidice round maybeRecover", "err", err)
-	//		panic(err)
-	//	}
-	//}()
 	go m.handleMsgQueueLoops()
 	return nil
 }
@@ -137,57 +129,35 @@ func (m *MinidiceRound) maybeRecover() error {
 	if len(activeGames) > 0 {
 		msgRound := make([]queue.MsgInQueue, 0)
 		for _, ag := range activeGames {
-			//m.logger.Info("active game:", "denom", ag.Denom, "state", ag.State, "game_id", ag.GameId)
 			switch ag.State {
 			case minidicetypes.RoundState_ROUND_STATE_NOT_STARTED, minidicetypes.RoundState_ROUND_STATE_FINALIZED:
 				msgRound = append(msgRound, queue.MsgInQueue{
 					Messages: []sdk.Msg{minidicetypes.NewMsgStartRound(m.creatorAddr, ag.GameId)},
 					TimeExec: time.Now().Unix(),
 				})
-				//err := m.startRound(ag.GameId)
-				//if err != nil {
-				//	m.logger.Error("recover call startRound err", "error", err)
-				//	panic(err)
-				//}
 			case minidicetypes.RoundState_ROUND_STATE_STARTED:
 				timeNow := time.Now().UTC().Unix()
 				timeEndRound := ag.EndRound
 				diffSec := timeNow - timeEndRound
 				m.logger.Info("maybeRecover", "diff time", diffSec)
-				//var err error
 				if diffSec > 0 {
 					msgRound = append(msgRound, queue.MsgInQueue{
 						Messages: []sdk.Msg{minidicetypes.NewMsgEndRound(m.creatorAddr, ag.GameId)},
 						TimeExec: time.Now().Unix(),
 					})
-					//err = m.endRound(ag.GameId)
 				} else {
 					msgRound = append(msgRound, queue.MsgInQueue{
 						Messages: []sdk.Msg{minidicetypes.NewMsgEndRound(m.creatorAddr, ag.GameId)},
 						TimeExec: time.Now().Unix() - diffSec,
 					})
-					//t := time.NewTicker(time.Duration(-diffSec) * time.Second)
-					//defer t.Stop()
-					//<-t.C
-					//err = m.endRound(ag.GameId)
 				}
 
-				//if err != nil {
-				//	m.logger.Error("recover call endRound err", "error", err)
-				//	panic(err)
-				//}
 			case minidicetypes.RoundState_ROUND_STATE_ENDED:
 				msgRound = append(msgRound, queue.MsgInQueue{
 					Messages: []sdk.Msg{&minidicetypes.MsgFinalizeRound{Creator: m.creatorAddr, GameId: ag.GameId}},
 					TimeExec: time.Now().Unix(),
 				})
-				//err := m.finalizeRound(ag.GameId)
-				//if err != nil {
-				//	m.logger.Error("recover call startRound err", "error", err)
-				//	panic(err)
-				//}
 			}
-			//time.Sleep(200 * time.Millisecond)
 		}
 		m.logger.Info("maybeRecover", "msgRound", spew.Sdump(msgRound))
 		m.execBroadcast.PushBatch(msgRound)
@@ -212,76 +182,60 @@ func (m *MinidiceRound) getActiveGames() []*minidicetypes.ActiveGame {
 func (m *MinidiceRound) FilterRoundEvent(state *tmstate.ABCIResponses) ([]queue.MsgInQueue, error) {
 	msgs := make([]queue.MsgInQueue, 0)
 	for _, deliverTx := range state.DeliverTxs {
-		m.logger.Error("FilterRoundEvent", "deliverTx", deliverTx.String())
+		m.logger.Debug("FilterRoundEvent", "deliverTx", deliverTx.String())
 		if deliverTx.Code != 0 {
 			continue
 		}
 
 		// filter init game event
 		events := FindEventsByType(deliverTx.Events, minidicetypes.EventTypeInitGame)
-		spew.Dump("init_game", events)
 		if len(events) > 0 {
-			msg, err := m.FilterInitGameEvent(events, m.creatorAddr)
+			msg, err := m.filterInitGameEvent(events, m.creatorAddr)
 			if err != nil {
 				m.logger.Error("FilterRoundEvent", "error", err)
 				return nil, err
 			}
-			m.logger.Error("FilterRoundEvent", "msg_init", spew.Sdump(msg))
-			//m.queueExec.PushBatch(msg)
 			msgs = append(msgs, msg...)
 		}
 
 		// filter start round event
 		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
-		spew.Dump("start_round", events)
 		if len(events) > 0 {
-			msg, err := m.FilterStartRoundEvent(events, m.creatorAddr)
+			msg, err := m.filterStartRoundEvent(events, m.creatorAddr)
 			if err != nil {
 				m.logger.Error("FilterRoundEvent", "error", err)
 				return nil, err
 			}
-			m.logger.Error("FilterRoundEvent", "msg_start", spew.Sdump(msg))
-			//m.queueExec.PushBatch(msg)
 			msgs = append(msgs, msg...)
 		}
 
 		// filter end round event
 		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeEndRound)
-		spew.Dump("end_round", events)
 		if len(events) > 0 {
-			msg, err := m.FilterEndRoundEvent(events, m.creatorAddr)
+			msg, err := m.filterEndRoundEvent(events, m.creatorAddr)
 			if err != nil {
 				m.logger.Error("FilterRoundEvent", "error", err)
 				return nil, err
 			}
-			m.logger.Error("FilterRoundEvent", "msg_end", spew.Sdump(msg))
-			//m.queueExec.PushBatch(msg)
 			msgs = append(msgs, msg...)
 		}
 
 		// filter finalize round event
 		events = FindEventsByType(deliverTx.Events, minidicetypes.EventTypeFinalizeRound)
-		spew.Dump("finalize_round", events)
 		if len(events) > 0 {
-			msg, err := m.FilterFinalizeRoundEvent(events, m.creatorAddr)
+			msg, err := m.filterFinalizeRoundEvent(events, m.creatorAddr)
 			if err != nil {
 				m.logger.Error("FilterRoundEvent", "error", err)
 				return nil, err
 			}
-			m.logger.Error("FilterRoundEvent", "msg_finalize", spew.Sdump(msg))
-			//m.queueExec.PushBatch(msg)
 			msgs = append(msgs, msg...)
 		}
 	}
-	//if len(msgs) > 0 {
-	m.logger.Error("FilterRoundEvent", "msg", spew.Sdump(msgs))
-	//	//m.eventChannel <- msgs
-	//}
 
 	return msgs, nil
 }
 
-func (m *MinidiceRound) FilterInitGameEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+func (m *MinidiceRound) filterInitGameEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
 	var msgStartRounds []queue.MsgInQueue
 	for _, event := range events {
 		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
@@ -298,16 +252,16 @@ func (m *MinidiceRound) FilterInitGameEvent(events []abci.Event, creator string)
 	return msgStartRounds, nil
 }
 
-func (m *MinidiceRound) FilterStartRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+func (m *MinidiceRound) filterStartRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
 	var inQueues []queue.MsgInQueue
+	m.sinceStartsMu.Lock()
+	defer m.sinceStartsMu.Unlock()
 	for _, event := range events {
 		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
 		if err != nil {
 			return nil, fmt.Errorf("error while getting mini-dice game id: %s", err)
 		}
 		gameId := string(gameIdAttr.GetValue())
-		m.sinceStartsMu.Lock()
-		defer m.sinceStartsMu.Unlock()
 		m.sinceStarts[gameId] = time.Now().Unix()
 
 		inQueues = append(inQueues, queue.MsgInQueue{
@@ -319,7 +273,7 @@ func (m *MinidiceRound) FilterStartRoundEvent(events []abci.Event, creator strin
 	return inQueues, nil
 }
 
-func (m *MinidiceRound) FilterEndRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+func (m *MinidiceRound) filterEndRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
 	var msgInQueues []queue.MsgInQueue
 	for _, event := range events {
 		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
@@ -339,8 +293,10 @@ func (m *MinidiceRound) FilterEndRoundEvent(events []abci.Event, creator string)
 	return msgInQueues, nil
 }
 
-func (m *MinidiceRound) FilterFinalizeRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
+func (m *MinidiceRound) filterFinalizeRoundEvent(events []abci.Event, creator string) ([]queue.MsgInQueue, error) {
 	var msgInQueues []queue.MsgInQueue
+	m.sinceStartsMu.Lock()
+	defer m.sinceStartsMu.Unlock()
 	for _, event := range events {
 		gameIdAttr, err := FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
 		if err != nil {
@@ -348,20 +304,19 @@ func (m *MinidiceRound) FilterFinalizeRoundEvent(events []abci.Event, creator st
 		}
 		gameId := string(gameIdAttr.GetValue())
 		msg := minidicetypes.NewMsgStartRound(creator, gameId)
-		m.logger.Info("FilterFinalizeRoundEvent", "msg", spew.Sdump(msg))
 		msgInQueue := queue.MsgInQueue{
 			Messages: []sdk.Msg{msg},
 		}
-		m.sinceStartsMu.Lock()
-		defer m.sinceStartsMu.Unlock()
-		t := m.sinceStarts[gameId]
 
+		t := m.sinceStarts[gameId]
 		startedIn := time.Now().Unix() - t
 		diff := m.options.RoundInterval - int(startedIn)
 		if diff > 0 {
 			msgInQueue.TimeExec = time.Now().Unix() + int64(diff)
+		} else {
+			msgInQueue.TimeExec = time.Now().Unix()
+
 		}
-		msgInQueue.TimeExec = time.Now().Unix()
 
 		msgInQueues = append(msgInQueues, msgInQueue)
 	}
@@ -371,23 +326,21 @@ func (m *MinidiceRound) FilterFinalizeRoundEvent(events []abci.Event, creator st
 
 func (m *MinidiceRound) PubEvents(state *tmstate.ABCIResponses) {
 	m.eventChannel <- state
-	m.logger.Info("PubEvents", "state", spew.Sdump(state))
+	m.logger.Debug("PubEvents", "state", spew.Sdump(state))
 }
 
 func (m *MinidiceRound) handleMsgQueueLoops() {
 	for {
 		select {
 		case <-m.ctx.Done():
-			m.logger.Info("handleMsgQueueLoops", "ctx done")
 			return
 		case states := <-m.eventChannel:
-			//m.logger.Info("handleMsgQueueLoops", "states", spew.Sdump(states))
 			msgs, err := m.FilterRoundEvent(states)
 			if err != nil {
 				m.logger.Error("handleMsgQueueLoops", "error", err)
 				panic(err)
 			}
-			m.logger.Info("handleMsgQueueLoops", "msgs", spew.Sdump(msgs))
+			m.logger.Debug("handleMsgQueueLoops", "msgs", spew.Sdump(msgs))
 			if len(msgs) > 0 {
 				m.execBroadcast.PushBatch(msgs)
 

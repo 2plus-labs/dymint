@@ -42,13 +42,13 @@ func NewExecutor(ctx context.Context, logger log.Logger, client *tplus.TplusClie
 
 func (e *Executor) Serve() error {
 	isExecuted := false
-	t := time.NewTicker(1 * time.Second)
+	t := time.NewTicker(500 * time.Millisecond)
 	for {
 		select {
 		case <-e.ctx.Done():
 			return nil
 		case <-t.C:
-			e.logger.Info("executor: ", "sender", e.sender, "time", time.Now().Unix())
+			e.logger.Info("executor: ", "sender", e.sender, "time", time.Now().Unix(), "isExecuted", isExecuted)
 			if !isExecuted {
 				isExecuted = true
 				err := e.Broadcast(e.ctx)
@@ -73,7 +73,7 @@ func (e *Executor) Broadcast(ctx context.Context) error {
 		e.logger.Info("executor: ", "sender", e.sender, "no msgs found", "found", found, "len", len(items))
 		return nil
 	}
-	//e.logger.Info("executor: ", "sender", e.sender, "broadcast msgs", len(items))
+
 	err := retry.Do(func() error {
 		msgs := make([]sdk.Msg, 0)
 		for _, msgInQueue := range items {
@@ -83,18 +83,9 @@ func (e *Executor) Broadcast(ctx context.Context) error {
 		txResp, err := e.client.BroadcastTx(e.sender, msgs...)
 		if err != nil || txResp.Code != 0 {
 			e.logger.Error("broadcast tx error", "err", err)
-			//if txResp.Code == 32 {
-			//accNum, accSeq, err := e.client.GetAccountNumberSequence(e.sender)
-			//if err != nil {
-			//	e.logger.Error("get account error", "err", err)
-			//	return err
-			//}
-			//e.logger.Error("executor: ", "sender", e.sender, "retrying with", "accNum", accNum, "accSeq", accSeq)
-			//e.client.Factory.WithSequence(accSeq + 1).WithAccountNumber(accNum)
-			//}
 			return err
 		}
-		e.logger.Info("executor: ", "sender", e.sender, "broadcast tx success", "txHash", txResp.TxHash)
+
 		return nil
 	}, retry.Context(ctx), retry.LastErrorOnly(true), retry.Delay(e.ctlRoundRetryDelay),
 		retry.MaxDelay(e.ctlRoundRetryMaxDelay), retry.Attempts(e.ctlRoundRetryAttempts))
