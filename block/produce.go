@@ -117,6 +117,8 @@ func (m *Manager) produceBlock(ctx context.Context, allowEmpty bool) error {
 	height := m.store.Height()
 	newHeight := height + 1
 
+	startTime := time.Now()
+
 	// this is a special case, when first block is produced - there is no previous commit
 	if newHeight == uint64(m.genesis.InitialHeight) {
 		lastCommit = &types.Commit{Height: height, HeaderHash: [32]byte{}}
@@ -177,7 +179,7 @@ func (m *Manager) produceBlock(ctx context.Context, allowEmpty bool) error {
 		return err
 	}
 
-	m.logger.Info("block created", "height", newHeight, "num_tx", len(block.Data.Txs))
+	m.logger.Info("block created", "height", newHeight, "num_tx", len(block.Data.Txs), "time_ex", time.Since(startTime).Seconds())
 	rollappHeightGauge.Set(float64(newHeight))
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dymensionxyz/dymint/tplus/round"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -114,6 +115,9 @@ type Node struct {
 	// keep context here only because of API compatibility
 	// - it's used in `OnStart` (defined in service.Service interface)
 	ctx context.Context
+
+	// round manager
+	roundManager *round.MinidiceRound
 }
 
 // NewNode creates new Dymint node.
@@ -186,7 +190,15 @@ func NewNode(ctx context.Context, conf config.NodeConfig, p2pKey crypto.PrivKey,
 	p2pClient.SetTxValidator(p2pValidator.TxValidator(mp, mpIDs))
 	p2pClient.SetBlockValidator(p2pValidator.BlockValidator())
 
-	blockManager, err := block.NewManager(signingKey, conf.BlockManagerConfig, genesis, s, mp, proxyApp, dalc, settlementlc, eventBus, pubsubServer, p2pClient, logger.With("module", "BlockManager"), conf.TplusConfig)
+	// init round manager
+	roundManager, err := round.NewMinidiceRound(conf.TplusConfig, round.DefaultOptions(), logger.With("module", "round_manager"))
+	if err != nil {
+		return nil, fmt.Errorf("round manager initialization error: %w", err)
+	}
+
+	blockManager, err := block.NewManager(signingKey, conf.BlockManagerConfig, genesis, s, mp, proxyApp, dalc,
+		settlementlc, eventBus, pubsubServer, p2pClient, logger.With("module", "BlockManager"),
+		roundManager.GetEventsChannel())
 	if err != nil {
 		return nil, fmt.Errorf("BlockManager initialization error: %w", err)
 	}
@@ -209,6 +221,7 @@ func NewNode(ctx context.Context, conf config.NodeConfig, p2pKey crypto.PrivKey,
 		IndexerService: indexerService,
 		BlockIndexer:   blockIndexer,
 		ctx:            ctx,
+		roundManager:   roundManager,
 	}
 
 	node.BaseService = *service.NewBaseService(logger, "Node", node)
@@ -283,6 +296,12 @@ func (n *Node) OnStart() error {
 	err = n.blockManager.Start(n.ctx, n.conf.Aggregator)
 	if err != nil {
 		return fmt.Errorf("error while starting block manager: %w", err)
+	}
+
+	// start round manager
+	err = n.roundManager.Start()
+	if err != nil {
+		return fmt.Errorf("error while starting round manager: %w", err)
 	}
 
 	return nil
