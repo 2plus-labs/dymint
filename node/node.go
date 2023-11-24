@@ -36,6 +36,7 @@ import (
 	"github.com/dymensionxyz/dymint/state/txindex"
 	"github.com/dymensionxyz/dymint/state/txindex/kv"
 	"github.com/dymensionxyz/dymint/store"
+	"github.com/dymensionxyz/dymint/tplus/round"
 	"github.com/dymensionxyz/dymint/utils"
 )
 
@@ -111,6 +112,9 @@ type Node struct {
 
 	baseLayersHealthStatus BaseLayersHealthStatus
 
+	roundManager *round.MinidiceRound
+	eventsFilter *round.EventsFilter
+
 	// keep context here only because of API compatibility
 	// - it's used in `OnStart` (defined in service.Service interface)
 	ctx context.Context
@@ -131,6 +135,8 @@ func NewNode(ctx context.Context, conf config.NodeConfig, p2pKey crypto.PrivKey,
 	}
 
 	pubsubServer := pubsub.NewServer()
+
+	eventsFilter := round.NewEventsFilter(1000)
 
 	var baseKV store.KVStore
 	if conf.RootDir == "" && conf.DBPath == "" { // this is used for testing
@@ -186,7 +192,7 @@ func NewNode(ctx context.Context, conf config.NodeConfig, p2pKey crypto.PrivKey,
 	p2pClient.SetTxValidator(p2pValidator.TxValidator(mp, mpIDs))
 	p2pClient.SetBlockValidator(p2pValidator.BlockValidator())
 
-	blockManager, err := block.NewManager(signingKey, conf.BlockManagerConfig, genesis, s, mp, proxyApp, dalc, settlementlc, eventBus, pubsubServer, p2pClient, logger.With("module", "BlockManager"), conf.TplusConfig)
+	blockManager, err := block.NewManager(signingKey, conf.BlockManagerConfig, genesis, s, mp, proxyApp, dalc, settlementlc, eventBus, pubsubServer, p2pClient, logger.With("module", "BlockManager"), eventsFilter)
 	if err != nil {
 		return nil, fmt.Errorf("BlockManager initialization error: %w", err)
 	}
@@ -208,6 +214,8 @@ func NewNode(ctx context.Context, conf config.NodeConfig, p2pKey crypto.PrivKey,
 		TxIndexer:      txIndexer,
 		IndexerService: indexerService,
 		BlockIndexer:   blockIndexer,
+		roundManager:   nil,
+		eventsFilter:   eventsFilter,
 		ctx:            ctx,
 	}
 
@@ -280,9 +288,30 @@ func (n *Node) OnStart() error {
 	n.eventListener()
 
 	// start the block manager
+	n.Logger.Info("start block manager round")
 	err = n.blockManager.Start(n.ctx, n.conf.Aggregator)
 	if err != nil {
 		return fmt.Errorf("error while starting block manager: %w", err)
+	}
+
+	n.Logger.Info("start minidice round")
+	go func() {
+		// Delay run recover for ensure at least one block created
+		time.Sleep(500 * time.Millisecond)
+		n.Logger.Info("new minidice round")
+		roundManager, err := round.NewMinidiceRound(n.conf.TplusConfig, round.DefaultOptions(), n.Logger, n.eventsFilter)
+		if err != nil {
+			panic(err)
+		}
+		n.roundManager = roundManager
+		err = n.roundManager.Start()
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	if err != nil {
+		return fmt.Errorf("error while starting round manager: %w", err)
 	}
 
 	return nil

@@ -16,7 +16,7 @@ import (
 	"github.com/dymensionxyz/dymint/p2p"
 	"github.com/dymensionxyz/dymint/settlement"
 	"github.com/dymensionxyz/dymint/testutil"
-	"github.com/dymensionxyz/dymint/tplus"
+	"github.com/dymensionxyz/dymint/tplus/round"
 	"github.com/dymensionxyz/dymint/types"
 	"github.com/libp2p/go-libp2p/core/crypto"
 
@@ -68,6 +68,8 @@ func TestInitialState(t *testing.T) {
 	}()
 	assert.NoError(err)
 
+	eventsFilter := round.NewEventsFilter(1000)
+
 	cases := []struct {
 		name                    string
 		store                   store.Store
@@ -99,7 +101,7 @@ func TestInitialState(t *testing.T) {
 
 			dalc := getMockDALC(logger)
 			agg, err := NewManager(key, conf, c.genesis, c.store, nil, proxyApp, dalc, settlementlc,
-				nil, pubsubServer, p2pClient, logger, tplus.DefaultConfig())
+				nil, pubsubServer, p2pClient, logger, eventsFilter)
 			assert.NoError(err)
 			assert.NotNil(agg)
 			assert.Equal(c.expectedChainID, agg.lastState.ChainID)

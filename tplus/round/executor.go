@@ -11,12 +11,7 @@ import (
 	"github.com/dymensionxyz/dymint/tplus"
 	"github.com/dymensionxyz/dymint/tplus/queue"
 	abci "github.com/tendermint/tendermint/abci/types"
-	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
 )
-
-type eventData struct {
-	events map[string][]abci.Event
-}
 
 type Executor struct {
 	logger                log.Logger
@@ -28,19 +23,18 @@ type Executor struct {
 	ctlRoundRetryMaxDelay time.Duration
 	maxBatch              int
 	sender                string
-	eventsCh              chan eventData
-	eventsCap             int
 	m                     *MinidiceRound
+	eventsFilter          *EventsFilter
 }
 
 func NewExecutor(
 	ctx context.Context,
 	logger log.Logger,
 	m *MinidiceRound,
+	eventsFilter *EventsFilter,
 	client *tplus.TplusClient,
 	sender string,
 	maxBatch int,
-	eventsCap int,
 ) *Executor {
 	e := &Executor{
 		ctx:                   ctx,
@@ -52,13 +46,15 @@ func NewExecutor(
 		msgs:                  &queue.Queue{},
 		maxBatch:              maxBatch,
 		sender:                sender,
-		eventsCh:              make(chan eventData, eventsCap),
-		eventsCap:             eventsCap,
 		m:                     m,
+		eventsFilter:          eventsFilter,
 	}
+	return e
+}
+
+func (e *Executor) Run(ctx context.Context) {
 	go e.broadcastMsgsLoop(ctx)
 	go e.handleEventsLoop(ctx)
-	return e
 }
 
 func (e *Executor) Push(msgs ...sdk.Msg) {
@@ -93,53 +89,18 @@ func (e *Executor) broadcastMsgsLoop(ctx context.Context) {
 }
 
 func (e *Executor) handleEventsLoop(ctx context.Context) {
-	for data := range e.eventsCh {
-		for eventKey := range data.events {
+	e.eventsFilter.Run(ctx, func(events map[string][]abci.Event) {
+		for eventKey := range events {
 			switch eventKey {
 			case minidicetypes.EventTypeInitGame:
-				e.m.handleInitGame(data.events[eventKey])
+				e.m.handleInitGame(events[eventKey])
 			case minidicetypes.EventTypeStartRound:
-				e.m.handleStartRound(data.events[eventKey])
+				e.m.handleStartRound(events[eventKey])
 			case minidicetypes.EventTypeEndRound:
-				e.m.handleEndRound(data.events[eventKey])
+				e.m.handleEndRound(events[eventKey])
 			case minidicetypes.EventTypeFinalizeRound:
-				e.m.handleFinalizeRound(data.events[eventKey])
+				e.m.handleFinalizeRound(events[eventKey])
 			}
 		}
-	}
-}
-
-func (e *Executor) publishResponses(ctx context.Context, responses *tmstate.ABCIResponses) error {
-	roundEvents := e.filterRoundEvents(responses)
-	select {
-	case e.eventsCh <- eventData{events: roundEvents}:
-		return nil
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-func (e *Executor) filterRoundEvents(responses *tmstate.ABCIResponses) map[string][]abci.Event {
-	roundEvents := map[string][]abci.Event{}
-	for _, deliverTx := range responses.DeliverTxs {
-		if deliverTx.Code != 0 {
-			continue
-		}
-		// Filter Initgame
-		eventsInitGame := tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeInitGame)
-		roundEvents[minidicetypes.EventTypeInitGame] = eventsInitGame
-
-		// Filter StartRound
-		eventsStart := tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
-		roundEvents[minidicetypes.EventTypeStartRound] = eventsStart
-
-		// Filter EndRound
-		eventsEnd := tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeEndRound)
-		roundEvents[minidicetypes.EventTypeEndRound] = eventsEnd
-
-		// Filter FinalizeRound
-		eventsFinalize := tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeFinalizeRound)
-		roundEvents[minidicetypes.EventTypeFinalizeRound] = eventsFinalize
-	}
-	return roundEvents
+	})
 }

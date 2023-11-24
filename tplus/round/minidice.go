@@ -12,8 +12,6 @@ import (
 	"github.com/dymensionxyz/dymint/log"
 	"github.com/dymensionxyz/dymint/tplus"
 	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/libs/pubsub"
-	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
 )
 
 type MinidiceOptions struct {
@@ -30,11 +28,11 @@ func DefaultOptions() *MinidiceOptions {
 }
 
 type MinidiceRound struct {
-	ctx        context.Context
-	cancelFunc context.CancelFunc
-	logger     log.Logger
-	pubsub     *pubsub.Server
-	options    *MinidiceOptions
+	ctx          context.Context
+	cancelFunc   context.CancelFunc
+	logger       log.Logger
+	eventsFilter *EventsFilter
+	options      *MinidiceOptions
 	// tplusClient for query and broadcast tx to tplus chain app
 	tplusClient *tplus.TplusClient
 	creator     string
@@ -51,8 +49,7 @@ func NewMinidiceRound(
 	tplusConfig *tplus.Config,
 	options *MinidiceOptions,
 	logger log.Logger,
-	pubsub *pubsub.Server,
-	creator string,
+	eventsFilter *EventsFilter,
 ) (*MinidiceRound, error) {
 	var tplusClient *tplus.TplusClient
 	var err error
@@ -71,33 +68,36 @@ func NewMinidiceRound(
 		ctx:           ctx,
 		cancelFunc:    cancel,
 		options:       options,
-		pubsub:        pubsub,
+		eventsFilter:  eventsFilter,
 		logger:        logger,
 		tplusClient:   tplusClient,
-		creator:       creator,
+		creator:       tplusConfig.AccountName,
 		sinceStarts:   map[string]int64{},
 		sinceStartsMu: sync.Mutex{},
 	}
 
 	creatorAddr, err := m.tplusClient.GetAccountAddress(m.creator)
 	if err != nil {
-		m.logger.Error("NewMinidiceRound", "creator", creator)
+		m.logger.Error("NewMinidiceRound", "creator", m.creator)
 		return nil, err
 	}
-	logger.Info("minidice round", "creator", creator, "creator addr", creatorAddr)
+	logger.Info("minidice round", "creator", m.creator, "creator addr", creatorAddr)
 	m.creatorAddr = creatorAddr
 
-	e := NewExecutor(ctx, logger, m, tplusClient, m.creator, 5, 100)
+	e := NewExecutor(ctx, logger, m, eventsFilter, tplusClient, m.creator, 5)
 	m.e = e
 
 	return m, nil
 }
 
 func (m *MinidiceRound) Start() error {
+	m.e.Run(m.ctx)
+
 	activeGames := m.getActiveGames()
 	if len(activeGames) > 0 {
 		go m.recoverActiveGames(activeGames)
 	}
+
 	return nil
 }
 
@@ -113,7 +113,6 @@ func (m *MinidiceRound) delayPush(msg sdk.Msg, delay time.Duration) {
 }
 
 func (m *MinidiceRound) recoverActiveGames(activeGames []*minidicetypes.ActiveGame) {
-	time.Sleep(200 * time.Millisecond)
 	for _, ag := range activeGames {
 		switch ag.State {
 		case minidicetypes.RoundState_ROUND_STATE_NOT_STARTED:
@@ -206,10 +205,6 @@ func (m *MinidiceRound) handleInitGame(events []abci.Event) error {
 	return nil
 }
 
-func (m *MinidiceRound) PublishResponses(responses *tmstate.ABCIResponses) error {
-	return m.e.publishResponses(m.ctx, responses)
-}
-
 func (m *MinidiceRound) handleStartRound(events []abci.Event) error {
 	for _, event := range events {
 		gameIdAttr, err := tplus.FindAttributeByKey(event, minidicetypes.AttributeKeyGameID)
@@ -259,42 +254,6 @@ func (m *MinidiceRound) handleFinalizeRound(events []abci.Event) error {
 			m.startRoundOrDelay(gameId, 0)
 		}
 
-	}
-	return nil
-}
-
-func (m *MinidiceRound) FilterRoundEvent(state *tmstate.ABCIResponses) error {
-	for _, deliverTx := range state.DeliverTxs {
-		m.logger.Debug("FilterRoundEvent", "deliverTx", deliverTx.String())
-		if deliverTx.Code != 0 {
-			continue
-		}
-		var events []abci.Event
-		var err error
-		// Filter Initgame
-		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeInitGame)
-		err = m.handleInitGame(events)
-		if err != nil {
-			return err
-		}
-		// Filter StartRound
-		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeStartRound)
-		err = m.handleStartRound(events)
-		if err != nil {
-			return err
-		}
-		// Filter EndRound
-		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeEndRound)
-		err = m.handleEndRound(events)
-		if err != nil {
-			return err
-		}
-		// Filter FinalizeRound
-		events = tplus.FindEventsByType(deliverTx.Events, minidicetypes.EventTypeFinalizeRound)
-		err = m.handleFinalizeRound(events)
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
