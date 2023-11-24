@@ -13,14 +13,14 @@ type MsgInQueue struct {
 }
 
 type Queue struct {
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	elems []MsgInQueue
 }
 
 func NewQueue() *Queue {
 	return &Queue{
 		elems: make([]MsgInQueue, 0),
-		mu:    sync.Mutex{},
+		mu:    sync.RWMutex{},
 	}
 }
 
@@ -108,8 +108,8 @@ func (q *Queue) PopByTime(timeExec int64, maxBatch int) ([]MsgInQueue, bool) {
 }
 
 func (q *Queue) Len() int {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 
 	return len(q.elems)
 }

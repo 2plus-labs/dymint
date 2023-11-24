@@ -179,7 +179,7 @@ func (m *Manager) produceBlock(ctx context.Context, allowEmpty bool) error {
 		return err
 	}
 
-	m.logger.Info("block created", "height", newHeight, "num_tx", len(block.Data.Txs), "time_ex", time.Since(startTime).Milliseconds())
+	m.logger.Info("block created", "height", newHeight, "num_tx", len(block.Data.Txs), "time_ex", time.Since(startTime).Seconds())
 	rollappHeightGauge.Set(float64(newHeight))
 	return nil
 }

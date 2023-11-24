@@ -7,7 +7,6 @@ import (
 	abci "github.com/tendermint/tendermint/abci/types"
 	tmpubsub "github.com/tendermint/tendermint/libs/pubsub"
 	tmquery "github.com/tendermint/tendermint/libs/pubsub/query"
-	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
 )
 
 const (
@@ -26,10 +25,10 @@ const (
 	QueryMinidiceEndRound      = "EndRound.end_round='end_round'"
 )
 
-type Manager interface {
-	FilterRoundEvent(state *tmstate.ABCIResponses) error
-	Start() error
-}
+//type Manager interface {
+//	FilterRoundEvent(state *tmstate.ABCIResponses) error
+//	Start() error
+//}
 
 type MinidiceInitGameData struct {
 	GameId string
