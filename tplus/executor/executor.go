@@ -70,7 +70,7 @@ func (e *Executor) PushBatch(msgs []queue.MsgInQueue) {
 func (e *Executor) Broadcast(ctx context.Context) error {
 	items, found := e.queueExec.PopByTime(time.Now().Unix(), e.maxBatch)
 	if !found || len(items) == 0 {
-		e.logger.Info("executor: ", "sender", e.sender, "no msgs found", "found", found, "len", len(items))
+		e.logger.Debug("executor: ", "sender", e.sender, "no msgs found", "found", found, "len", len(items))
 		return nil
 	}
 
