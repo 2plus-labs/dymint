@@ -79,9 +79,7 @@ type Manager struct {
 
 	logger log.Logger
 
-	// add tplus config
-	//tplusCfg     *tplus.Config
-	//roundManager *round.MinidiceRound
+	// add channel for events
 	eventsChannel chan *tmstate.ABCIResponses
 }
 
@@ -196,33 +194,8 @@ func (m *Manager) Start(ctx context.Context, isAggregator bool) error {
 	go m.SyncTargetLoop(ctx)
 	m.EventListener(ctx)
 
-	//m.logger.Info("Starting the minidice round")
-	//if err := m.StartMinidiceRound(); err != nil {
-	//	m.logger.Error("Failed to start minidice round", "err", err)
-	//	return err
-	//}
-
 	return nil
 }
-
-//func (m *Manager) StartMinidiceRound() error {
-//	m.logger.Info("Started minidice round")
-//	minidiceRound, err := round.NewMinidiceRound(m.tplusCfg, round.DefaultOptions(), m.logger)
-//	if err != nil {
-//		m.logger.Error("minidice round init failed", "err", err)
-//		return fmt.Errorf("minidice round init failed error: %w", err)
-//	}
-//
-//	m.roundManager = minidiceRound
-//
-//	//m.minidiceRound = minidiceRound
-//	err = m.roundManager.Start()
-//	if err != nil {
-//		m.logger.Error("minidice round start failed", "err", err)
-//		return fmt.Errorf("error while starting minidice round: %w", err)
-//	}
-//	return nil
-//}
 
 func getAddress(key crypto.PrivKey) ([]byte, error) {
 	rawKey, err := key.GetPublic().Raw()

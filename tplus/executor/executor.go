@@ -6,7 +6,6 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/dymensionxyz/dymint/log"
 	"github.com/dymensionxyz/dymint/tplus"
 	"github.com/dymensionxyz/dymint/tplus/queue"
@@ -48,7 +47,7 @@ func (e *Executor) Serve() error {
 		case <-e.ctx.Done():
 			return nil
 		case <-t.C:
-			e.logger.Info("executor: ", "sender", e.sender, "time", time.Now().Unix(), "isExecuted", isExecuted)
+			e.logger.Debug("executor: ", "sender", e.sender, "time", time.Now().Unix(), "isExecuted", isExecuted)
 			if !isExecuted {
 				isExecuted = true
 				err := e.Broadcast(e.ctx)
@@ -79,7 +78,7 @@ func (e *Executor) Broadcast(ctx context.Context) error {
 		for _, msgInQueue := range items {
 			msgs = append(msgs, msgInQueue.Messages...)
 		}
-		spew.Dump(msgs)
+
 		txResp, err := e.client.BroadcastTx(e.sender, msgs...)
 		if err != nil || txResp.Code != 0 {
 			e.logger.Error("broadcast tx error", "err", err)

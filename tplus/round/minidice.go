@@ -125,7 +125,7 @@ func (m *MinidiceRound) Start() error {
 func (m *MinidiceRound) maybeRecover() error {
 	// Recover state of all game active
 	activeGames := m.getActiveGames()
-	m.logger.Info("maybeRecover", "list active games:", activeGames)
+	m.logger.Debug("maybeRecover", "list active games:", activeGames)
 	if len(activeGames) > 0 {
 		msgRound := make([]queue.MsgInQueue, 0)
 		for _, ag := range activeGames {
